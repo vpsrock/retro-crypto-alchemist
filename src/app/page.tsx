@@ -353,6 +353,7 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
       contractsToFind: data.contractsToFind,
       minVolume: data.minVolume,
       sortBy: data.sortBy,
+      profile: data.profile,
     });
     
     if (discoveryResult.data?.log) {

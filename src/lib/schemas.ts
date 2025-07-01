@@ -38,7 +38,7 @@ export type SingleContractValues = z.infer<typeof singleContractSchema>;
 
 export const multiContractSchema = z.object({
     contracts: z.string().min(3, "At least one contract is required."),
-    profile: z.enum(["default", "mean_reversion", "breakout"]),
+    profile: z.enum(["default", "mean_reversion", "breakout", "low_cap_gems", "volume_surge", "contrarian", "funding_arbitrage", "new_listings", "stablecoin_pairs"]),
     settle: z.enum(["usdt", "btc"]),
     interval: z.enum(["5m", "15m", "1h", "4h"]),
     threshold: z.number().min(0).max(100),
@@ -51,7 +51,7 @@ export const discoverySchema = z.object({
     threshold: z.number().min(0).max(100),
     contractsToFind: z.number().min(1).max(50).default(10),
     concurrency: z.number().min(1).max(20).default(10),
-    profile: z.enum(["default", "mean_reversion", "breakout"]),
+    profile: z.enum(["default", "mean_reversion", "breakout", "low_cap_gems", "volume_surge", "contrarian", "funding_arbitrage", "new_listings", "stablecoin_pairs"]),
     minVolume: z.number().min(0).default(1000000),
     sortBy: z.enum(["score", "volume", "change"]).default("score"),
     tradeSizeUsd: z.number().min(5).max(1000).default(10),
@@ -141,6 +141,7 @@ export const DiscoverContractsInputSchema = z.object({
   contractsToFind: z.number().min(1).max(100).describe('The number of contracts to find.'),
   minVolume: z.number().min(0).describe('The minimum 24h volume in USD.'),
   sortBy: z.enum(['score', 'volume', 'change']).describe('The sorting strategy.'),
+  profile: z.enum(["default", "mean_reversion", "breakout", "low_cap_gems", "volume_surge", "contrarian", "funding_arbitrage", "new_listings", "stablecoin_pairs"]).optional().default("default").describe('The scanning profile to use.'),
 });
 export type DiscoverContractsInput = z.infer<typeof DiscoverContractsInputSchema>;
 

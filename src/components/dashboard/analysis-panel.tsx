@@ -113,6 +113,12 @@ export function AnalysisPanel({ onStartSingle, onStartMulti, onStartDiscovery, i
                                 <SelectItem value="default">Default (High Volatility)</SelectItem>
                                 <SelectItem value="mean_reversion">Mean Reversion</SelectItem>
                                 <SelectItem value="breakout">Breakout</SelectItem>
+                                <SelectItem value="low_cap_gems">Low-Cap Gems</SelectItem>
+                                <SelectItem value="volume_surge">Volume Surge</SelectItem>
+                                <SelectItem value="contrarian">Contrarian (Reversals)</SelectItem>
+                                <SelectItem value="funding_arbitrage">Funding Arbitrage</SelectItem>
+                                <SelectItem value="new_listings">New Listings</SelectItem>
+                                <SelectItem value="stablecoin_pairs">Stablecoin Pairs</SelectItem>
                             </SelectContent>
                           </Select>
                         </FormItem>
