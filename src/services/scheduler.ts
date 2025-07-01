@@ -1,6 +1,7 @@
 import * as database from './database';
 import { discoverContracts, type DiscoverContractsInput } from '../ai/flows/discover-contracts';
 import { analyzeTradeRecommendations } from '../ai/flows/analyze-trade-recommendations';
+import { cleanupOrphanedOrders } from '../ai/flows/trade-management';
 
 // Re-export types from database
 export type { ScheduledJob, TradePosition, SchedulerStats } from './database';
@@ -18,6 +19,7 @@ class SchedulerService {
   private runningJobs: Set<string> = new Set();
   private jobIntervals: Map<string, NodeJS.Timeout> = new Map();
   private positionMonitorInterval?: NodeJS.Timeout;
+  private orphanCleanupInterval?: NodeJS.Timeout;
   private isInitialized = false;
 
   async initialize(): Promise<void> {
@@ -28,6 +30,9 @@ class SchedulerService {
     
     // Start position monitoring (every 2 minutes)
     this.startPositionMonitoring();
+    
+    // Start orphan order cleanup (every 10 minutes)
+    this.startOrphanOrderCleanup();
     
     // Load and restart active jobs
     await this.loadAndStartActiveJobs();
@@ -420,8 +425,63 @@ class SchedulerService {
       clearInterval(this.positionMonitorInterval);
     }
 
+    // Clear orphan order cleanup
+    if (this.orphanCleanupInterval) {
+      clearInterval(this.orphanCleanupInterval);
+    }
+
+    // Clear orphan order cleanup
+    if (this.orphanCleanupInterval) {
+      clearInterval(this.orphanCleanupInterval);
+    }
+
     this.isInitialized = false;
     console.log('Scheduler service shut down');
+  }
+
+  private startOrphanOrderCleanup(): void {
+    console.log('Starting orphan order cleanup service...');
+    
+    // Clean up orphan orders every 10 minutes
+    this.orphanCleanupInterval = setInterval(async () => {
+      await this.cleanupOrphanOrders();
+    }, 10 * 60 * 1000);
+
+    // Also run after 30 seconds on startup
+    setTimeout(() => this.cleanupOrphanOrders(), 30000);
+  }
+
+  private async cleanupOrphanOrders(): Promise<void> {
+    try {
+      console.log('Running orphan order cleanup...');
+      
+      // Get API keys from localStorage equivalent (we'll need to store them in database or config)
+      // For now, we'll skip if no API keys are available
+      // TODO: Store API keys in database for server-side access
+      
+      const cleanupInput = {
+        settle: 'usdt' as const,
+        apiKey: process.env.GATE_IO_API_KEY || '',
+        apiSecret: process.env.GATE_IO_SECRET || ''
+      };
+      
+      if (!cleanupInput.apiKey || !cleanupInput.apiSecret) {
+        console.log('Skipping orphan order cleanup - Gate.io API keys not available');
+        return;
+      }
+      
+      const result = await cleanupOrphanedOrders(cleanupInput);
+      
+      if (result.cancelled_orders && result.cancelled_orders.length > 0) {
+        console.log(`Cleaned up ${result.cancelled_orders.length} orphan orders:`, 
+          result.cancelled_orders.map(o => o.id));
+      } else {
+        console.log('No orphan orders found to cleanup');
+      }
+      
+    } catch (error) {
+      console.error('Error during orphan order cleanup:', error);
+    }
   }
 }
 
