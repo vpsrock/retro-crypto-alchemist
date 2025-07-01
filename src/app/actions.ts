@@ -29,12 +29,12 @@ export async function runSingleContractAnalysis(data: AnalyzeTradeRecommendation
 
 export async function runContractDiscovery(data: DiscoverContractsInput) {
   try {
-    console.log(`[${new Date().toISOString()}] Starting contract discovery for ${data.contractsToFind} contracts`);
+    console.log(`[${new Date().toISOString()}] Starting contract discovery for ${data.contractsPerProfile} contracts per profile across ${data.profiles.length} profile(s)`);
     const result = await discoverContracts(data);
     if (!result || !result.contracts || result.contracts.length === 0) {
       return { error: 'Discovery completed but found no contracts. The market may be quiet or filters are too strict.', data: result };
     }
-    console.log(`[${new Date().toISOString()}] Discovery completed, found ${result.contracts.length} contracts`);
+    console.log(`[${new Date().toISOString()}] Discovery completed, found ${result.contracts.length} unique contracts`);
     return { data: result };
   } catch (e: any) {
     console.error("Contract discovery error:", e);

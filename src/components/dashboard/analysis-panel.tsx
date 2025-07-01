@@ -44,7 +44,7 @@ export function AnalysisPanel({ onStartSingle, onStartMulti, onStartDiscovery, i
     resolver: zodResolver(multiContractSchema),
     defaultValues: {
       contracts: "BTC_USDT, ETH_USDT, SOL_USDT",
-      profile: "default",
+      profiles: ["default"],
       settle: "usdt",
       interval: "15m",
       threshold: 75,
@@ -104,23 +104,42 @@ export function AnalysisPanel({ onStartSingle, onStartMulti, onStartDiscovery, i
             <Form {...discoveryForm}>
               <form onSubmit={discoveryForm.handleSubmit(onStartDiscovery)} className="space-y-4">
                  <div className="grid grid-cols-2 gap-4">
-                    <FormField control={discoveryForm.control} name="profile" render={({ field }) => (
+                    <FormField control={discoveryForm.control} name="profiles" render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Scan Profile</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>
-                                <SelectItem value="default">Default (High Volatility)</SelectItem>
-                                <SelectItem value="mean_reversion">Mean Reversion</SelectItem>
-                                <SelectItem value="breakout">Breakout</SelectItem>
-                                <SelectItem value="low_cap_gems">Low-Cap Gems</SelectItem>
-                                <SelectItem value="volume_surge">Volume Surge</SelectItem>
-                                <SelectItem value="contrarian">Contrarian (Reversals)</SelectItem>
-                                <SelectItem value="funding_arbitrage">Funding Arbitrage</SelectItem>
-                                <SelectItem value="new_listings">New Listings</SelectItem>
-                                <SelectItem value="stablecoin_pairs">Stablecoin Pairs</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <FormLabel>Scan Profiles (Select Multiple)</FormLabel>
+                          <div className="grid grid-cols-1 gap-2 p-3 border rounded-md max-h-48 overflow-y-auto">
+                            {[
+                              { value: "default", label: "Default (High Volatility)" },
+                              { value: "mean_reversion", label: "Mean Reversion" },
+                              { value: "breakout", label: "Breakout" },
+                              { value: "low_cap_gems", label: "Low-Cap Gems" },
+                              { value: "volume_surge", label: "Volume Surge" },
+                              { value: "contrarian", label: "Contrarian (Reversals)" },
+                              { value: "funding_arbitrage", label: "Funding Arbitrage" },
+                              { value: "new_listings", label: "New Listings" },
+                              { value: "stablecoin_pairs", label: "Stablecoin Pairs" }
+                            ].map((profile) => (
+                              <label key={profile.value} className="flex items-center space-x-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={field.value?.includes(profile.value as any) || false}
+                                  onChange={(e) => {
+                                    const currentValues = field.value || [];
+                                    if (e.target.checked) {
+                                      field.onChange([...currentValues, profile.value as any]);
+                                    } else {
+                                      field.onChange(currentValues.filter(v => v !== profile.value));
+                                    }
+                                  }}
+                                  className="rounded"
+                                />
+                                <span>{profile.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Selected: {field.value?.length || 0} profile(s)
+                          </p>
                         </FormItem>
                       )} />
                     <FormField control={discoveryForm.control} name="sortBy" render={({ field }) => (
@@ -145,9 +164,9 @@ export function AnalysisPanel({ onStartSingle, onStartMulti, onStartDiscovery, i
                     <FormItem><FormLabel>Interval</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="5m">5m</SelectItem><SelectItem value="15m">15m</SelectItem><SelectItem value="1h">1h</SelectItem><SelectItem value="4h">4h</SelectItem></SelectContent></Select></FormItem>
                   )} />
                 </div>
-                 <FormField control={discoveryForm.control} name="contractsToFind" render={({ field }) => (
+                 <FormField control={discoveryForm.control} name="contractsPerProfile" render={({ field }) => (
                   <FormItem>
-                     <FormLabel>Contracts to Find: {field.value}</FormLabel>
+                     <FormLabel>Contracts per Profile: {field.value}</FormLabel>
                     <FormControl><Slider defaultValue={[field.value]} min={1} max={50} step={1} onValueChange={(value) => field.onChange(value[0])}/></FormControl>
                   </FormItem>
                 )} />

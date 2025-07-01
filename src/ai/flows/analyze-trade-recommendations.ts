@@ -59,7 +59,7 @@ async function fetchGateioData(settle: string, contract: string, interval: strin
     ];
 
     if (!providedTickerData) {
-        fetchPromises.push(fetch(`${baseUrl}/futures/${settle}/tickers`, {headers, next: { revalidate: 60 }}));
+        fetchPromises.push(fetch(`${baseUrl}/futures/${settle}/tickers`, {headers, next: { revalidate: 30 }})); // Fresh data for volatile markets
     }
 
     const responses = await Promise.all(fetchPromises);

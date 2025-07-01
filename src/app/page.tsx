@@ -31,9 +31,9 @@ const defaultDiscoveryValues: DiscoveryValues = {
     settle: "usdt",
     interval: "15m",
     threshold: 75,
-    contractsToFind: 10,
+    contractsPerProfile: 10,
     concurrency: 10,
-    profile: "default",
+    profiles: ["default"],
     minVolume: 1000000,
     sortBy: "score",
     tradeSizeUsd: 10,
@@ -339,21 +339,15 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
     console.log("🚀 NEW PARALLEL PROCESSING CODE IS RUNNING! v2.0 - 17:43");
     setIsAnalyzing(true);
     setResults([]); 
-    addLog(`DISCOVERY: Starting discovery for top ${data.contractsToFind} contracts...`);
-    addLog("🚀 USING NEW PARALLEL PROCESSING VERSION v2.0!");
-    
-    // *** THE ISSUE FOUND! ***
-    // Your analysis is running sequentially because there's still old code being executed
-    // Let me check if this new code is actually being called
-    console.error("DEBUG: If you see this in console, the new code IS running but something else is wrong");
-    console.error("DEBUG: If you DON'T see this, browser is using cached code - try hard refresh");
+    addLog(`DISCOVERY: Starting discovery for top ${data.contractsPerProfile} contracts per profile across ${data.profiles.length} profile(s)...`);
+    addLog("🚀 USING NEW MULTI-PROFILE DISCOVERY SYSTEM!");
 
     const discoveryResult = await runContractDiscovery({
       settle: data.settle,
-      contractsToFind: data.contractsToFind,
+      contractsPerProfile: data.contractsPerProfile,
       minVolume: data.minVolume,
       sortBy: data.sortBy,
-      profile: data.profile,
+      profiles: data.profiles,
     });
     
     if (discoveryResult.data?.log) {
@@ -378,15 +372,15 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
         contract: task.contract,
         settle: data.settle,
         interval: data.interval,
+        threshold: data.threshold,
+        foundByProfile: task.foundByProfile,
+        tickerData: task.tickerData,
         openaiApiKey: config.apiKey,
         modelConfig: config.activeModel,
         promptTemplate: config.activePrompt.content.replace('[TIMEFRAME]', data.interval),
-        threshold: data.threshold,
-        tickerData: task.tickerData,
     }));
     
     addLog(`ANALYSIS: Starting analysis for ${tasks.length} contracts with up to ${data.concurrency} parallel threads...`);
-    addLog(`DEBUG: Function processTasksBatch is about to be defined and called`);
     
     // Implement proper parallel processing with controlled concurrency
     const processTasksBatch = async (taskBatch: typeof tasks) => {
@@ -419,7 +413,7 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
                     const newResult: CombinedResult = {
                         ...result.data,
                         final_decision: result.data.confidence_score > (task.threshold || 75) ? 'TRADE' : 'SKIP',
-                        found_by_profile: data.profile,
+                        found_by_profile: task.foundByProfile || 'Discovery',
                         tradeSizeUsd: data.tradeSizeUsd,
                         leverage: data.leverage,
                     };

@@ -27,7 +27,7 @@ async function fetchAllGateioTickers(settle: 'usdt' | 'btc'): Promise<any[]> {
     };
     try {
         const tickersUrl = `${baseUrl}/futures/${settle}/tickers`;
-        const tickerRes = await fetch(tickersUrl, {headers, next: { revalidate: 300 }}); // Cache for 5 minutes
+        const tickerRes = await fetch(tickersUrl, {headers, next: { revalidate: 30 }}); // Cache for 30 seconds - fresh data for volatile markets
         if (!tickerRes.ok) {
             const errorBody = await tickerRes.text();
             throw new Error(`Gate.io API error for tickers: ${tickerRes.status} - ${errorBody}`);
@@ -39,58 +39,95 @@ async function fetchAllGateioTickers(settle: 'usdt' | 'btc'): Promise<any[]> {
     }
 }
 
-export async function discoverContracts(input: DiscoverContractsInput): Promise<{contracts: {contract: string, tickerData: any}[], log: string}> {
+export async function discoverContracts(input: DiscoverContractsInput): Promise<{contracts: {contract: string, tickerData: any, foundByProfile: string}[], log: string}> {
   const logLines: string[] = [];
+  const startTime = new Date();
   
   const tickers = await fetchAllGateioTickers(input.settle);
-  logLines.push(`1. Fetched ${tickers.length} tickers from Gate.io for '${input.settle}' settlement.`);
+  const fetchTime = new Date();
+  logLines.push(`1. Fetched ${tickers.length} tickers from Gate.io for '${input.settle}' settlement at ${fetchTime.toLocaleTimeString()} (cache: max 30s old).`);
 
   if (!tickers || tickers.length === 0) {
     throw new Error('API returned no tickers. The Gate.io API might be temporarily unavailable or there are no contracts for the selected currency.');
   }
   
-  // Apply profile-specific filtering and scoring
-  const profileResults = applyProfileFiltering(tickers, input, logLines);
-  const scoredContracts = profileResults.contracts;
+  logLines.push(`2. Processing ${input.profiles.length} selected profile(s): ${input.profiles.join(', ')}`);
   
-  logLines.push(`2. Applied '${input.profile}' profile filtering. Processed ${profileResults.processedCount} tickers, kept ${scoredContracts.length} contracts.`);
+  // Run discovery for each profile and collect results
+  const allProfileResults: {contract: string, tickerData: any, foundByProfile: string}[] = [];
+  const profileResultsMap = new Map<string, {contract: string, tickerData: any, foundByProfile: string}>();
+  
+  for (const profile of input.profiles) {
+    logLines.push(`\n--- Processing Profile: ${profile} ---`);
+    
+    // Apply profile-specific filtering and scoring
+    const profileResults = applyProfileFiltering(tickers, { ...input, profile }, logLines);
+    const scoredContracts = profileResults.contracts;
+    
+    logLines.push(`Profile '${profile}': Processed ${profileResults.processedCount} tickers, kept ${scoredContracts.length} contracts.`);
 
-  if (scoredContracts.length === 0) {
-    const minVolumeText = `$${(input.minVolume / 1_000_000).toFixed(0)}M`;
-    let errorMessage = `Applied '${input.profile}' profile but found 0 matching contracts. Try adjusting filters or different profile.`;
-    if (profileResults.rejectedSamples.length > 0) {
-        errorMessage += `\n\nDEBUG: Sample rejected contracts:\n${JSON.stringify(profileResults.rejectedSamples, null, 2)}`;
+    if (scoredContracts.length === 0) {
+      logLines.push(`Profile '${profile}': No contracts found - skipping.`);
+      continue;
     }
+
+    // Sort contracts for this profile
+    scoredContracts.sort((a, b) => {
+      switch (input.sortBy) {
+          case 'volume':
+              return b.volume - a.volume;
+          case 'change':
+              return Math.abs(b.change) - Math.abs(a.change);
+          case 'score':
+          default:
+              return b.score - a.score;
+      }
+    });
+    
+    // Take top contracts for this profile
+    const topProfileContracts = scoredContracts.slice(0, input.contractsPerProfile);
+    const contractNamesForLog = topProfileContracts.map(c => c.contract);
+    logLines.push(`Profile '${profile}': Selected top ${topProfileContracts.length} contracts: ${contractNamesForLog.join(', ')}`);
+    
+    // Add to results, avoiding duplicates (prioritize first profile that found it)
+    for (const contract of topProfileContracts) {
+      if (!profileResultsMap.has(contract.contract)) {
+        const result = { 
+          contract: contract.contract, 
+          tickerData: contract.tickerData, 
+          foundByProfile: profile 
+        };
+        profileResultsMap.set(contract.contract, result);
+        allProfileResults.push(result);
+      }
+    }
+  }
+
+  if (allProfileResults.length === 0) {
+    let errorMessage = `No contracts found across ${input.profiles.length} profile(s). Try adjusting filters or different profiles.`;
     throw new Error(errorMessage);
   }
 
-  scoredContracts.sort((a, b) => {
-    switch (input.sortBy) {
-        case 'volume':
-            return b.volume - a.volume;
-        case 'change':
-            return Math.abs(b.change) - Math.abs(a.change);
-        case 'score':
-        default:
-            return b.score - a.score;
-    }
-  });
+  logLines.push(`\n--- Final Results ---`);
+  logLines.push(`3. Combined results from ${input.profiles.length} profile(s): Found ${allProfileResults.length} unique contracts total.`);
   
-  const topContractsForLog = scoredContracts.slice(0, 20).map(c => ({contract: c.contract, score: c.score, volume: c.volume.toLocaleString(), change: c.change}));
-  logLines.push(`3. Scored and sorted ${scoredContracts.length} valid contracts by '${input.sortBy}'. Top 20 shown below:\n${JSON.stringify(topContractsForLog, null, 2)}`);
+  // Show breakdown by profile
+  const profileBreakdown = input.profiles.map(profile => {
+    const count = allProfileResults.filter(r => r.foundByProfile === profile).length;
+    return `${profile}: ${count}`;
+  }).join(', ');
+  logLines.push(`4. Breakdown by profile: ${profileBreakdown}`);
 
-  const finalContractTasks = scoredContracts.slice(0, input.contractsToFind).map(c => ({ contract: c.contract, tickerData: c.tickerData }));
-  const contractNamesForLog = finalContractTasks.map(t => t.contract);
-
-  logLines.push(`4. Selected top ${finalContractTasks.length} contracts for analysis: ${contractNamesForLog.join(', ')}.`);
+  const contractNamesForLog = allProfileResults.map(r => `${r.contract} (${r.foundByProfile})`);
+  logLines.push(`5. Final contracts for analysis: ${contractNamesForLog.join(', ')}`);
   
   return {
-    contracts: finalContractTasks,
+    contracts: allProfileResults,
     log: logLines.join('\n\n')
   };
 }
 
-function applyProfileFiltering(tickers: any[], input: DiscoverContractsInput, logLines: string[]): {
+function applyProfileFiltering(tickers: any[], input: DiscoverContractsInput & { profile: string }, logLines: string[]): {
   contracts: {contract: string, score: number, volume: number, change: number, tickerData: any}[],
   processedCount: number,
   rejectedSamples: any[]
@@ -150,7 +187,7 @@ function applyProfileFiltering(tickers: any[], input: DiscoverContractsInput, lo
 
 function applyProfileLogic(
   contracts: any[],
-  input: DiscoverContractsInput,
+  input: DiscoverContractsInput & { profile: string },
   MIN_VOLUME_USD: number,
   rejectedSamples: any[],
   processedCount: number,
