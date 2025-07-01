@@ -59,6 +59,20 @@ export const discoverySchema = z.object({
 });
 export type DiscoveryValues = z.infer<typeof discoverySchema>;
 
+export const schedulerSchema = z.object({
+    name: z.string().min(1, "Job name is required"),
+    settle: z.enum(["usdt", "btc"]),
+    interval: z.enum(["5m", "15m", "1h", "4h"]),
+    scheduleInterval: z.enum(["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "24h"]),
+    threshold: z.number().min(0).max(100),
+    contractsPerProfile: z.number().min(1).max(50).default(10),
+    profiles: z.array(z.enum(["default", "mean_reversion", "breakout", "low_cap_gems", "volume_surge", "contrarian", "funding_arbitrage", "new_listings", "stablecoin_pairs"])).min(1).default(["default"]),
+    minVolume: z.number().min(0).default(1000000),
+    tradeSizeUsd: z.number().min(5).max(1000).default(10),
+    leverage: z.number().min(1).max(100).default(10),
+    isActive: z.boolean().default(true),
+});
+export type SchedulerValues = z.infer<typeof schedulerSchema>;
 
 // AI Flow Schemas
 

@@ -11,6 +11,7 @@ import { OrdersPanel } from "@/components/dashboard/orders-panel";
 import { LogPanel, type LogEntry } from "@/components/dashboard/log-panel";
 import { SettingsPanel } from "@/components/dashboard/settings-panel";
 import { PositionsPanel } from "@/components/dashboard/positions-panel";
+import { SchedulerPanel } from "@/components/dashboard/scheduler-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { discoverySchema, type AnalyzeTradeRecommendationsOutput, type ApiKeySettings, type AiModelConfig, type PromptSettings, type DiscoveryValues, type MultiContractValues, type SingleContractValues, type CombinedResult, type ListOpenOrdersOutput, type ListOpenPositionsOutput } from "@/lib/schemas";
@@ -72,6 +73,7 @@ export default function Home() {
   });
   
   React.useEffect(() => {
+    // Initialize app settings from localStorage
     setApiKeys(safelyParseJson(localStorage.getItem("apiKeys"), {
       gateIoKey: "",
       gateIoSecret: "",
@@ -211,6 +213,30 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
     
     const discoveryDefaults = safelyParseJson(localStorage.getItem("discoveryFormDefaults"), defaultDiscoveryValues);
     discoveryForm.reset(discoveryDefaults);
+    
+    // Initialize database and scheduler
+    async function initializeScheduler() {
+      try {
+        const response = await fetch('/api/scheduler/init', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.ok) {
+          addLog("Database and scheduler initialized successfully", "success");
+        } else {
+          addLog("Failed to initialize database and scheduler", "error");
+        }
+      } catch (error) {
+        console.error('Error initializing scheduler:', error);
+        addLog("Error initializing scheduler: " + String(error), "error");
+      }
+    }
+    
+    initializeScheduler();
+    
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -641,8 +667,9 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
       <Header />
       <main className="flex-grow p-4">
         <Tabs defaultValue="dashboard" className="w-full h-full flex flex-col">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                <TabsTrigger value="scheduler">Scheduler</TabsTrigger>
                 <TabsTrigger value="positions">Positions</TabsTrigger>
                 <TabsTrigger value="logs">System Logs</TabsTrigger>
                 <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -663,6 +690,9 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
                     ordersPanel={<OrdersPanel orders={openOrders} onCancelOrder={handleCancelOrder} isLoading={isFetchingOrders} onRefresh={refreshAll} />}
                     logPanel={<LogPanel logs={logs} onClear={handleClearLogs} />}
                 />
+            </TabsContent>
+            <TabsContent value="scheduler" className="flex-grow mt-4">
+                <SchedulerPanel addLog={addLog} />
             </TabsContent>
             <TabsContent value="positions" className="flex-grow mt-4">
                 <PositionsPanel 

@@ -23,11 +23,16 @@ async function fetchAllGateioTickers(settle: 'usdt' | 'btc'): Promise<any[]> {
     const baseUrl = "https://api.gateio.ws/api/v4";
     const headers = {
         'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
     };
     try {
         const tickersUrl = `${baseUrl}/futures/${settle}/tickers`;
-        const tickerRes = await fetch(tickersUrl, {headers, next: { revalidate: 30 }}); // Cache for 30 seconds - fresh data for volatile markets
+        const tickerRes = await fetch(tickersUrl, {
+            headers,
+            cache: 'no-store'
+        }); // Always fetch fresh data - no caching
         if (!tickerRes.ok) {
             const errorBody = await tickerRes.text();
             throw new Error(`Gate.io API error for tickers: ${tickerRes.status} - ${errorBody}`);
@@ -45,7 +50,7 @@ export async function discoverContracts(input: DiscoverContractsInput): Promise<
   
   const tickers = await fetchAllGateioTickers(input.settle);
   const fetchTime = new Date();
-  logLines.push(`1. Fetched ${tickers.length} tickers from Gate.io for '${input.settle}' settlement at ${fetchTime.toLocaleTimeString()} (cache: max 30s old).`);
+  logLines.push(`1. Fetched ${tickers.length} fresh tickers from Gate.io for '${input.settle}' settlement at ${fetchTime.toLocaleTimeString()} (no caching - always fresh).`);
 
   if (!tickers || tickers.length === 0) {
     throw new Error('API returned no tickers. The Gate.io API might be temporarily unavailable or there are no contracts for the selected currency.');

@@ -50,16 +50,21 @@ export async function analyzeTradeRecommendations(input: AnalyzeTradeRecommendat
 
 async function fetchGateioData(settle: string, contract: string, interval: string, providedTickerData?: any): Promise<any> {
     const baseUrl = "https://api.gateio.ws/api/v4";
-    const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+    const headers = { 
+        'Accept': 'application/json', 
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+    };
     
     const fetchPromises = [
-         fetch(`${baseUrl}/futures/${settle}/candlesticks?${new URLSearchParams({contract, interval, limit: '500'})}`, {headers}),
-         fetch(`${baseUrl}/futures/${settle}/order_book?${new URLSearchParams({contract, interval: '0', limit: '100'})}`, {headers}),
-         fetch(`${baseUrl}/futures/${settle}/trades?${new URLSearchParams({contract, limit: '500'})}`, {headers}),
+         fetch(`${baseUrl}/futures/${settle}/candlesticks?${new URLSearchParams({contract, interval, limit: '500'})}`, {headers, cache: 'no-store'}),
+         fetch(`${baseUrl}/futures/${settle}/order_book?${new URLSearchParams({contract, interval: '0', limit: '100'})}`, {headers, cache: 'no-store'}),
+         fetch(`${baseUrl}/futures/${settle}/trades?${new URLSearchParams({contract, limit: '500'})}`, {headers, cache: 'no-store'}),
     ];
 
     if (!providedTickerData) {
-        fetchPromises.push(fetch(`${baseUrl}/futures/${settle}/tickers`, {headers, next: { revalidate: 30 }})); // Fresh data for volatile markets
+        fetchPromises.push(fetch(`${baseUrl}/futures/${settle}/tickers`, {headers, cache: 'no-store'})); // Always fetch fresh data - no caching
     }
 
     const responses = await Promise.all(fetchPromises);
