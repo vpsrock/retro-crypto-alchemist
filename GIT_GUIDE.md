@@ -54,6 +54,8 @@ git checkout master
 4. To return to latest: `git checkout master`
 
 ## Your Current Commits:
+- `7b38d06` - Add 6 new scan profiles for rare earning opportunities
+- `faa1ba3` - Add Git usage guide for easy reference  
 - `e48b6a7` - Initial commit: Retro Crypto Alchemist V7 with parallel analysis and clean logging
 
 ## Important Notes:
