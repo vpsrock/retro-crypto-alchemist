@@ -213,20 +213,41 @@ class SchedulerService {
         return;
       }
 
+      // Get current prompt and model configuration from database
+      let promptTemplate = 'Analyze this futures contract for trading opportunities';
+      let modelConfig = {
+        id: 'default',
+        name: 'Default Model',
+        provider: 'openai' as const,
+        modelId: 'gpt-4o-mini',
+        modelType: 'reasoning' as const,
+        enabled: true
+      };
+
+      try {
+        const promptResponse = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/settings/active-prompt`);
+        
+        if (promptResponse.ok) {
+          const promptData = await promptResponse.json();
+          if (promptData.success) {
+            promptTemplate = promptData.prompt;
+            modelConfig = promptData.modelConfig;
+            console.log(`Using prompt: ${promptData.promptName} with model: ${modelConfig.name}`);
+          }
+        } else {
+          console.warn('Failed to get active prompt from database, using fallback');
+        }
+      } catch (fetchError) {
+        console.warn('Error fetching prompt from database, using fallback:', fetchError);
+      }
+
       // Prepare analysis input
       const analysisInput = {
         settle: profileConfig.settle,
         contract: contractInfo.contract,
         interval: context.interval, // Use interval from context
-        modelConfig: {
-          id: 'default',
-          name: 'Default Model',
-          provider: 'openai' as const,
-          modelId: 'gpt-4',
-          modelType: 'standard' as const,
-          enabled: true
-        },
-        promptTemplate: 'Analyze this futures contract for trading opportunities',
+        modelConfig,
+        promptTemplate,
         tickerData: contractInfo.tickerData
       };
 
@@ -455,14 +476,30 @@ class SchedulerService {
     try {
       console.log('Running orphan order cleanup...');
       
-      // Get API keys from localStorage equivalent (we'll need to store them in database or config)
-      // For now, we'll skip if no API keys are available
-      // TODO: Store API keys in database for server-side access
+      // Get API keys from database
+      let gateIoKey = process.env.GATE_IO_API_KEY || '';
+      let gateIoSecret = process.env.GATE_IO_SECRET || '';
+      
+      // Try to get from database if env vars are not available
+      if (!gateIoKey || !gateIoSecret) {
+        try {
+          const settingsResponse = await fetch(`${process.env.BASE_URL || 'http://localhost:3000'}/api/settings`);
+          if (settingsResponse.ok) {
+            const settingsData = await settingsResponse.json();
+            if (settingsData.success && settingsData.settings.api_keys) {
+              gateIoKey = settingsData.settings.api_keys.gateIoKey || gateIoKey;
+              gateIoSecret = settingsData.settings.api_keys.gateIoSecret || gateIoSecret;
+            }
+          }
+        } catch (fetchError) {
+          console.warn('Could not fetch API keys from database:', fetchError);
+        }
+      }
       
       const cleanupInput = {
         settle: 'usdt' as const,
-        apiKey: process.env.GATE_IO_API_KEY || '',
-        apiSecret: process.env.GATE_IO_SECRET || ''
+        apiKey: gateIoKey,
+        apiSecret: gateIoSecret
       };
       
       if (!cleanupInput.apiKey || !cleanupInput.apiSecret) {

@@ -17,15 +17,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { discoverySchema, type AnalyzeTradeRecommendationsOutput, type ApiKeySettings, type AiModelConfig, type PromptSettings, type DiscoveryValues, type MultiContractValues, type SingleContractValues, type CombinedResult, type ListOpenOrdersOutput, type ListOpenPositionsOutput } from "@/lib/schemas";
 import { runSingleContractAnalysis, runContractDiscovery, runPlaceTradeStrategy, runListOpenOrders, runCancelOrder, runListOpenPositions, runCleanupOrphanedOrders } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
+import { settingsService, type DiscoveryDefaults } from "@/services/settings";
 
-// Helper to safely parse JSON from localStorage
+// Temporary stub - settings will be loaded from database
 const safelyParseJson = (jsonString: string | null, defaultValue: any) => {
-  if (!jsonString) return defaultValue;
-  try {
-    return JSON.parse(jsonString);
-  } catch (e) {
-    return defaultValue;
-  }
+  return defaultValue; // Return default for now, will be replaced by database loading
 };
 
 const defaultDiscoveryValues: DiscoveryValues = {
@@ -41,8 +37,6 @@ const defaultDiscoveryValues: DiscoveryValues = {
     leverage: 10,
 };
 
-const PROMPTS_STORAGE_KEY = "prompts_v3";
-
 export default function Home() {
   const logCounter = React.useRef(0);
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
@@ -52,6 +46,7 @@ export default function Home() {
   const [isFetchingOrders, setIsFetchingOrders] = React.useState(false);
   const [openPositions, setOpenPositions] = React.useState<ListOpenPositionsOutput>([]);
   const [isFetchingPositions, setIsFetchingPositions] = React.useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = React.useState(true);
 
   const { toast } = useToast();
 
@@ -86,7 +81,7 @@ export default function Home() {
       { id: "3", name: "OpenAI GPT-4 Turbo (Legacy)", provider: "openai", modelId: "gpt-4-turbo", modelType: "standard", enabled: false },
     ]));
     
-    const storedPrompts = safelyParseJson(localStorage.getItem(PROMPTS_STORAGE_KEY), null);
+    const storedPrompts = safelyParseJson(localStorage.getItem("prompts_v3"), null);
     if (storedPrompts) {
         setPrompts(storedPrompts);
     } else {
@@ -240,19 +235,66 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Effects to sync state with LocalStorage ---
+  // --- Load settings from database (overrides localStorage defaults) ---
+  React.useEffect(() => {
+    async function loadFromDatabase() {
+      try {
+        setIsLoadingSettings(true);
+        
+        // Load all settings from database  
+        const allSettings = await fetch('/api/settings');
+        const { settings } = await allSettings.json();
+        
+        // Update state with database values
+        setApiKeys(settings.api_keys);
+        setAiModels(settings.ai_models);
+        setPrompts(settings.prompts);
+        
+        // Update discovery form with database defaults
+        discoveryForm.reset(settings.discovery_defaults);
+        
+        addLog("Settings loaded from database", "success");
+      } catch (error) {
+        console.error('Error loading from database:', error);
+        addLog("Database loading failed, using defaults: " + String(error), "warning");
+      } finally {
+        setIsLoadingSettings(false);
+      }
+    }
+    
+    loadFromDatabase();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // --- Save settings to database when they change ---
+  React.useEffect(() => {
+    if (!isLoadingSettings) {
+      settingsService.saveApiKeys(apiKeys).catch(console.error);
+    }
+  }, [apiKeys, isLoadingSettings]);
 
   React.useEffect(() => {
-    localStorage.setItem("apiKeys", JSON.stringify(apiKeys));
-  }, [apiKeys]);
+    if (!isLoadingSettings) {
+      settingsService.saveAiModels(aiModels).catch(console.error);
+    }
+  }, [aiModels, isLoadingSettings]);
 
   React.useEffect(() => {
-    localStorage.setItem("aiModels", JSON.stringify(aiModels));
-  }, [aiModels]);
+    if (!isLoadingSettings) {
+      settingsService.savePrompts(prompts).catch(console.error);
+    }
+  }, [prompts, isLoadingSettings]);
 
   React.useEffect(() => {
-    localStorage.setItem(PROMPTS_STORAGE_KEY, JSON.stringify(prompts));
-  }, [prompts]);
+    if (!isLoadingSettings) {
+      const subscription = discoveryForm.watch((values) => {
+        if (values) {
+          settingsService.saveDiscoveryDefaults(values as DiscoveryDefaults).catch(console.error);
+        }
+      });
+      return () => subscription.unsubscribe();
+    }
+  }, [discoveryForm, isLoadingSettings]);
 
   const addLog = React.useCallback((summary: string, details?: string) => {
     const timestamp = new Date().toLocaleTimeString();

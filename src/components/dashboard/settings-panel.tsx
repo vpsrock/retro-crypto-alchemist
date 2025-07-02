@@ -43,20 +43,20 @@ export function SettingsPanel({
   
   const handleSaveApiKeys = () => {
     setApiKeys(localApiKeys);
-    addLog("SETTINGS: API keys updated and saved locally.");
-    toast({ title: "API Keys Saved", description: "Your API keys have been saved in browser storage." });
+    addLog("SETTINGS: API keys updated and saved to database.");
+    toast({ title: "API Keys Saved", description: "Your API keys have been saved to the database." });
   };
   
   const handleSavePrompts = () => {
     setPrompts(localPrompts);
-    addLog(`SETTINGS: Saved ${localPrompts.length} prompts.`);
-    toast({ title: "Prompts Saved", description: "Your prompts have been saved." });
+    addLog(`SETTINGS: Saved ${localPrompts.length} prompts to database.`);
+    toast({ title: "Prompts Saved", description: "Your prompts have been saved to the database." });
   }
 
   const handleSaveModels = () => {
     setAiModels(aiModels);
-    addLog("SETTINGS: AI Models saved.");
-    toast({ title: "AI Models Saved", description: "Your model configuration has been saved." });
+    addLog("SETTINGS: AI Models saved to database.");
+    toast({ title: "AI Models Saved", description: "Your model configuration has been saved to the database." });
   }
 
   const handleAddModel = () => {

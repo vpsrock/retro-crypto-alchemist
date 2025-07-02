@@ -16,8 +16,6 @@ import { singleContractSchema, multiContractSchema, discoverySchema, SingleContr
 import { Play, ListCollapse, Clock, Loader2, Search, Save } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
-const DISCOVERY_DEFAULTS_KEY = "discoveryFormDefaults";
-
 type AnalysisPanelProps = {
   onStartSingle: (data: SingleContractValues) => void;
   onStartMulti: (data: MultiContractValues) => void;
@@ -71,12 +69,12 @@ export function AnalysisPanel({ onStartSingle, onStartMulti, onStartDiscovery, i
 
   const handleSaveDefaults = () => {
     const currentValues = discoveryForm.getValues();
-    localStorage.setItem(DISCOVERY_DEFAULTS_KEY, JSON.stringify(currentValues));
+    // Note: Discovery defaults are now automatically saved via the form watch subscription in the main page
     toast({
         title: "Defaults Saved",
-        description: "Your discovery settings have been saved as the new default.",
+        description: "Your discovery settings have been saved to the database.",
     });
-    addLog("SETTINGS: Discovery defaults updated and saved locally.");
+    addLog("SETTINGS: Discovery defaults updated and saved to database.");
   };
 
   return (
