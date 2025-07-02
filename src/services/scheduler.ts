@@ -2,7 +2,7 @@ import * as database from './database';
 import { discoverContracts, type DiscoverContractsInput } from '../ai/flows/discover-contracts';
 import { analyzeTradeRecommendations, analyzeTradeRecommendationsWithLogger } from '../ai/flows/analyze-trade-recommendations';
 import { cleanupOrphanedOrders, placeTradeStrategy } from '../ai/flows/trade-management';
-import { schedulerLogger } from '../../tmp/scheduler-logs';
+import { schedulerLogger } from '../lib/scheduler-logs';
 
 // Re-export types from database
 export type { ScheduledJob, TradePosition, SchedulerStats } from './database';
@@ -125,6 +125,16 @@ class SchedulerService {
   }
 
   private async executeJob(job: database.ScheduledJob): Promise<void> {
+    // Re-fetch job from DB to ensure it's still active
+    const currentJob = await database.getScheduledJobById(job.id);
+
+    if (!currentJob || !currentJob.isActive) {
+      schedulerLogger.log('INFO', 'SCHEDULER', `Job ${job.id} is no longer active, unscheduling`, { jobId: job.id });
+      console.log(`Job ${job.id} (${job.name}) is no longer active. Unscheduling...`);
+      await this.unscheduleJob(job.id);
+      return;
+    }
+    
     const startTime = Date.now();
     
     if (this.runningJobs.has(job.id)) {

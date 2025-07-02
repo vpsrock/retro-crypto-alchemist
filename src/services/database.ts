@@ -285,6 +285,27 @@ export async function createScheduledJob(job: Omit<ScheduledJob, 'id' | 'created
   });
 }
 
+export async function getScheduledJobById(id: string): Promise<ScheduledJob | null> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      return reject(new Error('Database not initialized'));
+    }
+    db.get('SELECT * FROM scheduled_jobs WHERE id = ?', [id], (err, row: any) => {
+      if (err) {
+        return reject(err);
+      }
+      if (!row) {
+        return resolve(null);
+      }
+      resolve({ 
+        ...row, 
+        profiles: JSON.parse(row.profiles),
+        isActive: !!row.isActive
+      });
+    });
+  });
+}
+
 export async function getScheduledJobs(): Promise<ScheduledJob[]> {
   return new Promise((resolve, reject) => {
     if (!db) {
