@@ -48,6 +48,65 @@ export async function analyzeTradeRecommendations(input: AnalyzeTradeRecommendat
   return analyzeTradeRecommendationsFlow(input);
 }
 
+// New function that accepts scheduler logger for enhanced logging
+export async function analyzeTradeRecommendationsWithLogger(
+  input: AnalyzeTradeRecommendationsInput, 
+  schedulerLogger?: any
+): Promise<AnalyzeTradeRecommendationsOutput | null> {
+  return analyzeTradeRecommendationsWithLoggerInternal(input, schedulerLogger);
+}
+
+async function analyzeTradeRecommendationsWithLoggerInternal(
+  input: AnalyzeTradeRecommendationsInput,
+  schedulerLogger?: any
+): Promise<AnalyzeTradeRecommendationsOutput | null> {
+  const { contract, settle, tickerData } = input;
+
+  const rawData = await fetchGateioData(settle, contract, input.interval, tickerData);
+  const analysisPayload = await prepareAnalysisPayload(rawData, contract);
+  const { aiCall, fullPrompt, rawResponse, requestDetails } = await getAiTradeCall(analysisPayload, input, schedulerLogger);
+  
+  const trade_url = `https://www.gate.com/futures/${settle.toUpperCase()}/${contract}`;
+
+  const output: AnalyzeTradeRecommendationsOutput = {
+    market: contract,
+    trade_url,
+    trade_call: aiCall.trade_call,
+    confidence_score: aiCall.confidence_score,
+    current_price: analysisPayload.current_price,
+    take_profit: aiCall.take_profit,
+    stop_loss: aiCall.stop_loss,
+    summary: aiCall.summary,
+    rsi_14: analysisPayload.rsi_14,
+    macd: analysisPayload.macd,
+    macdsignal: analysisPayload.macdsignal,
+    bollinger_upper: analysisPayload.bollinger_upper,
+    bollinger_lower: analysisPayload.bollinger_lower,
+    atr_14: analysisPayload.atr_14,
+    stoch_k: analysisPayload.stoch_k,
+    stoch_d: analysisPayload.stoch_d,
+    ema_12: analysisPayload.ema_12,
+    ema_26: analysisPayload.ema_26,
+    obv: analysisPayload.obv,
+    buy_sell_ratio: analysisPayload.buy_sell_ratio,
+    imbalance_ratio: analysisPayload.imbalance_ratio,
+    recent_buy_volume: analysisPayload.recent_buy_volume,
+    recent_sell_volume: analysisPayload.recent_sell_volume,
+    spread: analysisPayload.spread,
+    funding_rate: analysisPayload.funding_rate,
+    volume_24h_usd: analysisPayload["24h_volume_usd"],
+    open_interest_contracts: analysisPayload.open_interest_contracts,
+    snapshot_timestamp_utc: analysisPayload.snapshot_timestamp_utc,
+    analysisPayload: analysisPayload,
+    prompt: fullPrompt,
+    rawResponse: rawResponse,
+    // Add request details for enhanced logging
+    requestDetails: requestDetails,
+  };
+
+  return output;
+}
+
 async function fetchGateioData(settle: string, contract: string, interval: string, providedTickerData?: any): Promise<any> {
     const baseUrl = "https://api.gateio.ws/api/v4";
     const headers = { 
@@ -222,12 +281,17 @@ async function prepareAnalysisPayload(raw_data: any, contract: string): Promise<
 
 async function getAiTradeCall(
     payload: any,
-    input: AnalyzeTradeRecommendationsInput
-): Promise<{aiCall: AiTradeCall, fullPrompt: string, rawResponse: string}> {
-    const { contract, modelConfig, openaiApiKey, promptTemplate } = input;
+    input: AnalyzeTradeRecommendationsInput,
+    schedulerLogger?: any
+): Promise<{aiCall: AiTradeCall, fullPrompt: string, rawResponse: string, requestDetails: any}> {
+    const { contract, modelConfig, openaiApiKey, promptTemplate, interval } = input;
 
     console.log(`[${new Date().toISOString()}] AI: Creating prompt for ${contract}`);
-    const fullPrompt = promptTemplate.replace('<<INSERT JSON SNAPSHOT HERE>>', JSON.stringify(payload, null, 2));
+    
+    // First, replace the timeframe placeholder, then the JSON snapshot.
+    const promptWithTimeframe = promptTemplate.replace(/\[TIMEFRAME\]/g, interval);
+    const fullPrompt = promptWithTimeframe.replace('<<INSERT JSON SNAPSHOT HERE>>', JSON.stringify(payload, null, 2));
+    
     console.log(`[${new Date().toISOString()}] AI: Prompt created for ${contract} (${fullPrompt.length} chars)`);
     
     if (modelConfig.provider === 'openai') {
@@ -235,9 +299,6 @@ async function getAiTradeCall(
             throw new Error('OpenAI API key is missing. Please add it in Settings.');
         }
         try {
-            console.log(`[${new Date().toISOString()}] AI: Sending request to OpenAI for ${contract} using model ${modelConfig.modelId}`);
-            const client = getOpenAIClient(openaiApiKey);
-
             const completionParams: any = {
                 model: modelConfig.modelId,
                 messages: [{ role: "user", content: fullPrompt }],
@@ -247,7 +308,34 @@ async function getAiTradeCall(
                 completionParams.response_format = { type: "json_object" };
             }
 
+            // Log detailed AI request information
+            const requestDetails = {
+                provider: modelConfig.provider,
+                modelId: modelConfig.modelId,
+                modelName: modelConfig.name,
+                modelType: modelConfig.modelType,
+                temperature: completionParams.temperature,
+                maxTokens: completionParams.max_tokens,
+                responseFormat: completionParams.response_format,
+                promptLength: fullPrompt.length,
+                promptPreview: fullPrompt.substring(0, 500) + (fullPrompt.length > 500 ? '...' : ''),
+                fullPrompt: fullPrompt
+            };
+
+            console.log(`[${new Date().toISOString()}] AI: Sending request to OpenAI for ${contract}`, requestDetails);
+            
+            // Log to scheduler logger if available
+            if (schedulerLogger) {
+                schedulerLogger.log('DEBUG', 'AI_REQUEST', `AI request sent for ${contract}`, {
+                    contract,
+                    ...requestDetails
+                });
+            }
+
+            const requestStart = Date.now();
+            const client = getOpenAIClient(openaiApiKey);
             const response = await client.chat.completions.create(completionParams);
+            const requestDuration = Date.now() - requestStart;
             
             console.log(`[${new Date().toISOString()}] AI: Received response from OpenAI for ${contract}`);
             const responseContent = response.choices[0].message.content;
@@ -276,8 +364,34 @@ async function getAiTradeCall(
                 }
             }
 
-            return { aiCall, fullPrompt, rawResponse: responseContent };
+            // Log detailed AI response information
+            const responseDetails = {
+                responseLength: responseContent.length,
+                responsePreview: responseContent.substring(0, 500) + (responseContent.length > 500 ? '...' : ''),
+                fullResponse: responseContent,
+                parsedResult: {
+                    confidence: aiCall.confidence_score,
+                    tradeCall: aiCall.trade_call,
+                    takeProfit: aiCall.take_profit,
+                    stopLoss: aiCall.stop_loss
+                },
+                duration: requestDuration
+            };
+
+            // Log to scheduler logger if available
+            if (schedulerLogger) {
+                schedulerLogger.log('SUCCESS', 'AI_RESPONSE', `AI response received for ${contract}`, {
+                    contract,
+                    ...responseDetails
+                });
+            }
+
+            return { aiCall, fullPrompt, rawResponse: responseContent, requestDetails };
         } catch (error: any) {
+            // Log error to scheduler logger if available
+            if (schedulerLogger) {
+                schedulerLogger.log('ERROR', 'AI_REQUEST', `AI request failed for ${contract}`, { contract }, error);
+            }
             throw new Error(`Error during OpenAI API call for ${contract}: ${error.message}`);
         }
     } else {
@@ -297,7 +411,8 @@ const analyzeTradeRecommendationsFlow = ai.defineFlow(
 
     const rawData = await fetchGateioData(settle, contract, input.interval, tickerData);
     const analysisPayload = await prepareAnalysisPayload(rawData, contract);
-    const { aiCall, fullPrompt, rawResponse } = await getAiTradeCall(analysisPayload, input);
+    const result = await getAiTradeCall(analysisPayload, input);
+    const { aiCall, fullPrompt, rawResponse } = result;
     
     const trade_url = `https://www.gate.com/futures/${settle.toUpperCase()}/${contract}`;
 

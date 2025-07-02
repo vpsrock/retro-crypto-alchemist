@@ -66,8 +66,10 @@ export const schedulerSchema = z.object({
     scheduleInterval: z.enum(["5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "24h"]),
     threshold: z.number().min(0).max(100),
     contractsPerProfile: z.number().min(1).max(50).default(10),
+    concurrency: z.number().min(1).max(20).default(10),
     profiles: z.array(z.enum(["default", "mean_reversion", "breakout", "low_cap_gems", "volume_surge", "contrarian", "funding_arbitrage", "new_listings", "stablecoin_pairs"])).min(1).default(["default"]),
     minVolume: z.number().min(0).default(1000000),
+    sortBy: z.enum(["score", "volume", "change"]).default("score"),
     tradeSizeUsd: z.number().min(5).max(1000).default(10),
     leverage: z.number().min(1).max(100).default(10),
     isActive: z.boolean().default(true),
@@ -131,6 +133,7 @@ export const AnalyzeTradeRecommendationsOutputSchema = z.object({
   analysisPayload: z.any().optional().describe("The full payload sent to the AI."),
   prompt: z.string().optional().describe("The full prompt sent to the AI."),
   rawResponse: z.string().optional().describe("The raw, unparsed response from the AI model."),
+  requestDetails: z.any().optional().describe("Detailed information about the AI request including model, parameters, and timing."),
 });
 export type AnalyzeTradeRecommendationsOutput = z.infer<typeof AnalyzeTradeRecommendationsOutputSchema>;
 

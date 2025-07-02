@@ -3,6 +3,8 @@ import path from 'path';
 
 const dbPath = path.join(process.cwd(), 'trades.db');
 let db: sqlite3.Database | null = null;
+let isInitializing = false;
+let isInitialized = false;
 
 export interface ScheduledJob {
   id: string;
@@ -13,7 +15,9 @@ export interface ScheduledJob {
   scheduleInterval: string; // '5m', '15m', '1h', etc.
   threshold: number;
   contractsPerProfile: number;
+  concurrency: number;
   minVolume: number;
+  sortBy: string;
   tradeSizeUsd: number;
   leverage: number;
   isActive: boolean;
@@ -100,10 +104,30 @@ export interface DiscoveryDefaults {
 
 // Initialize database
 export async function initDatabase(): Promise<void> {
+  // Prevent race conditions
+  if (isInitialized) {
+    return Promise.resolve();
+  }
+  
+  if (isInitializing) {
+    // Wait for ongoing initialization
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (isInitialized) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+    });
+  }
+  
+  isInitializing = true;
+  
   return new Promise((resolve, reject) => {
     db = new sqlite3.Database(dbPath, (err) => {
       if (err) {
         console.error('Failed to open database:', err);
+        isInitializing = false;
         reject(err);
         return;
       }
@@ -116,9 +140,14 @@ export async function initDatabase(): Promise<void> {
         })
         .then(() => {
           console.log('Database initialized successfully');
+          isInitialized = true;
+          isInitializing = false;
           resolve();
         })
-        .catch(reject);
+        .catch((createErr) => {
+          isInitializing = false;
+          reject(createErr);
+        });
     });
   });
 }
@@ -140,7 +169,9 @@ async function createTables(): Promise<void> {
         scheduleInterval TEXT NOT NULL,
         threshold INTEGER NOT NULL,
         contractsPerProfile INTEGER NOT NULL,
+        concurrency INTEGER NOT NULL DEFAULT 10,
         minVolume INTEGER NOT NULL,
+        sortBy TEXT NOT NULL DEFAULT 'score',
         tradeSizeUsd REAL NOT NULL,
         leverage INTEGER NOT NULL,
         isActive INTEGER NOT NULL DEFAULT 1,
@@ -206,7 +237,14 @@ async function createTables(): Promise<void> {
           reject(err);
           return;
         }
-        resolve();
+        
+        // Run migrations after tables are created
+        migrateDatabase()
+          .then(() => resolve())
+          .catch((migrationErr) => {
+            console.warn('Database migrations failed:', migrationErr);
+            resolve(); // Don't fail initialization if migrations fail
+          });
       });
     });
   });
@@ -226,8 +264,8 @@ export async function createScheduledJob(job: Omit<ScheduledJob, 'id' | 'created
 
     const sql = `
       INSERT INTO scheduled_jobs 
-      (id, name, profiles, settle, interval, scheduleInterval, threshold, contractsPerProfile, minVolume, tradeSizeUsd, leverage, isActive, createdAt, nextRun)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, name, profiles, settle, interval, scheduleInterval, threshold, contractsPerProfile, concurrency, minVolume, sortBy, tradeSizeUsd, leverage, isActive, createdAt, nextRun)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     // Calculate next run time
@@ -235,8 +273,8 @@ export async function createScheduledJob(job: Omit<ScheduledJob, 'id' | 'created
 
     db.run(sql, [
       id, job.name, profiles, job.settle, job.interval, job.scheduleInterval,
-      job.threshold, job.contractsPerProfile, job.minVolume, job.tradeSizeUsd,
-      job.leverage, job.isActive ? 1 : 0, createdAt, nextRun
+      job.threshold, job.contractsPerProfile, job.concurrency || 10, job.minVolume, 
+      job.sortBy || 'score', job.tradeSizeUsd, job.leverage, job.isActive ? 1 : 0, createdAt, nextRun
     ], function(err) {
       if (err) {
         reject(err);
@@ -285,6 +323,20 @@ export async function updateJobLastRun(jobId: string): Promise<void> {
   });
 }
 
+export async function updateJobNextRun(jobId: string, nextRun: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    db.run('UPDATE scheduled_jobs SET nextRun = ? WHERE id = ?', [nextRun, jobId], (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
 export async function toggleJobStatus(jobId: string, isActive: boolean): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!db) {
@@ -293,6 +345,20 @@ export async function toggleJobStatus(jobId: string, isActive: boolean): Promise
     }
 
     db.run('UPDATE scheduled_jobs SET isActive = ? WHERE id = ?', [isActive ? 1 : 0, jobId], (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+export async function deleteScheduledJob(jobId: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    db.run('DELETE FROM scheduled_jobs WHERE id = ?', [jobId], (err) => {
       if (err) reject(err);
       else resolve();
     });
@@ -396,6 +462,71 @@ export async function closePosition(positionId: string, realizedPnl: number): Pr
     db.run(
       'UPDATE trade_positions SET status = ?, realizedPnl = ?, closedAt = ?, lastUpdated = ? WHERE id = ?',
       ['closed', realizedPnl, now, now, positionId],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+export async function updatePositionOrders(positionId: string, orderData: {
+  entryOrderId?: string;
+  takeProfitOrderId?: string;
+  stopLossOrderId?: string;
+  status?: string;
+}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    const now = Date.now();
+    const fields = [];
+    const values = [];
+    
+    if (orderData.entryOrderId !== undefined) {
+      fields.push('entryOrderId = ?');
+      values.push(orderData.entryOrderId);
+    }
+    if (orderData.takeProfitOrderId !== undefined) {
+      fields.push('takeProfitOrderId = ?');
+      values.push(orderData.takeProfitOrderId);
+    }
+    if (orderData.stopLossOrderId !== undefined) {
+      fields.push('stopLossOrderId = ?');
+      values.push(orderData.stopLossOrderId);
+    }
+    if (orderData.status !== undefined) {
+      fields.push('status = ?');
+      values.push(orderData.status);
+    }
+    
+    fields.push('lastUpdated = ?');
+    values.push(now);
+    values.push(positionId);
+
+    const sql = `UPDATE trade_positions SET ${fields.join(', ')} WHERE id = ?`;
+    
+    db.run(sql, values, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+export async function updatePositionStatus(positionId: string, status: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    const now = Date.now();
+    db.run(
+      'UPDATE trade_positions SET status = ?, lastUpdated = ? WHERE id = ?',
+      [status, now, positionId],
       (err) => {
         if (err) reject(err);
         else resolve();
@@ -689,6 +820,46 @@ export async function initializeDefaultSettings(): Promise<void> {
   } catch (error) {
     console.error('Error initializing default settings:', error);
   }
+}
+
+// Database migration function to add missing columns to existing tables
+async function migrateDatabase(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    // List of columns to add if they don't exist
+    const migrations = [
+      'ALTER TABLE scheduled_jobs ADD COLUMN concurrency INTEGER NOT NULL DEFAULT 10',
+      'ALTER TABLE scheduled_jobs ADD COLUMN minVolume INTEGER NOT NULL DEFAULT 1000000',
+      'ALTER TABLE scheduled_jobs ADD COLUMN sortBy TEXT NOT NULL DEFAULT "score"',
+    ];
+
+    let completedMigrations = 0;
+    const totalMigrations = migrations.length;
+
+    if (totalMigrations === 0) {
+      resolve();
+      return;
+    }
+
+    migrations.forEach((migration, index) => {
+      db!.run(migration, (err) => {
+        // Ignore errors for columns that already exist
+        if (err && !err.message.includes('duplicate column name')) {
+          console.warn(`Migration ${index + 1} failed (likely column already exists):`, err.message);
+        }
+        
+        completedMigrations++;
+        if (completedMigrations === totalMigrations) {
+          console.log('Database migrations completed');
+          resolve();
+        }
+      });
+    });
+  });
 }
 
 // Helper functions

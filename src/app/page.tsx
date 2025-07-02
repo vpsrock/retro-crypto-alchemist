@@ -232,6 +232,30 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
     
     initializeScheduler();
     
+    // Auto-initialize scheduler and database on app startup
+    async function initializeAppSystems() {
+      try {
+        const response = await fetch('/api/scheduler/init', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.ok) {
+          addLog("✅ STARTUP: Database and scheduler auto-initialized successfully", "success");
+        } else {
+          addLog("⚠️ STARTUP: Failed to auto-initialize scheduler", "warning");
+        }
+      } catch (error) {
+        console.error('Error auto-initializing scheduler:', error);
+        addLog("❌ STARTUP: Error auto-initializing scheduler: " + String(error), "error");
+      }
+    }
+    
+    // Initialize systems after a short delay to let the page load
+    setTimeout(initializeAppSystems, 2000);
+    
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
