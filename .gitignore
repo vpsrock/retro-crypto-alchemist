@@ -52,5 +52,7 @@ firestore-debug.log
 # Logs
 tmp/
 
-# Test scripts
-*.js
+# Test scripts (allow scripts/ directory but ignore standalone test files)
+test-complete-flow.js
+trigger-*.js
+scheduler-standalone.js
