@@ -403,6 +403,7 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
       openaiApiKey: config.apiKey,
       modelConfig: config.activeModel,
       promptTemplate: populatedPrompt,
+      enhancedAnalysisEnabled: false // For now, keep enhanced analysis disabled in UI for stability
     };
 
     const result = await runSingleContractAnalysis(analysisInput);

@@ -379,7 +379,8 @@ class SchedulerService {
         modelConfig,
         promptTemplate: finalPrompt, // Use the modified prompt
         openaiApiKey, // Add the OpenAI API key
-        tickerData: contractInfo.tickerData
+        tickerData: contractInfo.tickerData,
+        enhancedAnalysisEnabled: false // For now, keep enhanced analysis disabled in scheduler for stability
       };
 
       schedulerLogger.log('DEBUG', 'ANALYSIS', `Starting AI analysis for ${contractInfo.contract}`, {

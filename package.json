@@ -9,7 +9,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "analyze:market": "node scripts/enhanced-market-analysis.js",
+    "analyze:contract": "node scripts/enhanced-market-analysis.js",
+    "enhanced-analysis": "node scripts/enhanced-market-analysis.js",
+    "validate:analysis": "node scripts/validate-analysis.js",
+    "validate-analysis": "node scripts/validate-analysis.js",
+    "test:integration": "node scripts/test-enhanced-integration.js",
+    "demo:enhanced": "node scripts/demo-enhanced-integration.js"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.13.0",

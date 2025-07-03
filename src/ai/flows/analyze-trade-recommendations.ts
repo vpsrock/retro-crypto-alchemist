@@ -24,6 +24,7 @@ import type {
   AnalyzeTradeRecommendationsOutput,
   AiTradeCall
 } from '@/lib/schemas';
+import { getEnhancedMarketAnalysis } from '@/services/enhanced-market-analysis';
 
 // Require the OpenAI library once at the module level.
 const OpenAI = require('openai');
@@ -63,7 +64,7 @@ async function analyzeTradeRecommendationsWithLoggerInternal(
   const { contract, settle, tickerData } = input;
 
   const rawData = await fetchGateioData(settle, contract, input.interval, tickerData);
-  const analysisPayload = await prepareAnalysisPayload(rawData, contract);
+  const analysisPayload = await prepareAnalysisPayload(rawData, contract, input, schedulerLogger);
   const { aiCall, fullPrompt, rawResponse, requestDetails } = await getAiTradeCall(analysisPayload, input, schedulerLogger);
   
   const trade_url = `https://www.gate.com/futures/${settle.toUpperCase()}/${contract}`;
@@ -102,6 +103,19 @@ async function analyzeTradeRecommendationsWithLoggerInternal(
     rawResponse: rawResponse,
     // Add request details for enhanced logging
     requestDetails: requestDetails,
+    // Include enhanced analysis if present (experimental)
+    enhancedAnalysis: analysisPayload._enhanced_debug ? {
+      metrics: analysisPayload._enhanced_debug.metrics,
+      aiPromptData: {
+        liquidation_momentum: analysisPayload.liquidation_momentum,
+        funding_sentiment: analysisPayload.funding_sentiment,
+        market_stress: analysisPayload.market_stress,
+        arbitrage_opportunity: analysisPayload.arbitrage_opportunity,
+        cascade_risk: analysisPayload.cascade_risk,
+        whale_activity: analysisPayload.whale_activity
+      },
+      rawData: analysisPayload._enhanced_debug.rawData
+    } : undefined,
   };
 
   return output;
@@ -153,7 +167,12 @@ async function fetchGateioData(settle: string, contract: string, interval: strin
     return { candlesticks, order_book: orderBook, trades, ticker_data: tickerData };
 }
 
-async function prepareAnalysisPayload(raw_data: any, contract: string): Promise<any> {
+async function prepareAnalysisPayload(
+  raw_data: any, 
+  contract: string, 
+  input?: AnalyzeTradeRecommendationsInput,
+  schedulerLogger?: any
+): Promise<any> {
     const yieldToEventLoop = () => new Promise(resolve => setImmediate(resolve));
     
     console.log(`[${new Date().toISOString()}] TECHNICAL: Starting technical analysis for ${contract}`);
@@ -263,7 +282,8 @@ async function prepareAnalysisPayload(raw_data: any, contract: string): Promise<
         volume24hUsd = ticker_data?.volume_24h_settle;
     }
 
-    return {
+    // Build basic payload
+    const basicPayload = {
         market: contract,
         snapshot_timestamp_utc: Date.now(),
         current_price: Number(last_price_raw),
@@ -277,6 +297,62 @@ async function prepareAnalysisPayload(raw_data: any, contract: string): Promise<
         funding_rate: new Decimal(ticker_data?.funding_rate || 0).toFixed(4),
         "24h_volume_usd": new Decimal(volume24hUsd || 0).toFixed(2),
     };
+
+    // Optionally add enhanced analysis (experimental feature)
+    if (input?.enhancedAnalysisEnabled) {
+        console.log(`[${new Date().toISOString()}] ENHANCED: Starting enhanced analysis for ${contract}`);
+        
+        try {
+            const enhancedAnalysis = await getEnhancedMarketAnalysis(
+                input.settle, 
+                contract, 
+                schedulerLogger
+            );
+            
+            console.log(`[${new Date().toISOString()}] ENHANCED: Enhanced analysis completed for ${contract}`);
+            
+            // Add enhanced data to payload with natural field names
+            return {
+                ...basicPayload,
+                // Present enhanced data as standard market microstructure
+                liquidation_momentum: enhancedAnalysis.aiPromptData.liquidation_momentum,
+                liquidation_clusters: enhancedAnalysis.aiPromptData.liquidation_clusters,
+                liquidation_rate_1h: enhancedAnalysis.aiPromptData.liquidation_rate_1h,
+                funding_sentiment: enhancedAnalysis.aiPromptData.funding_sentiment,
+                funding_extremity: enhancedAnalysis.aiPromptData.funding_extremity,
+                funding_rate_current: enhancedAnalysis.aiPromptData.funding_rate_current,
+                institutional_flow: enhancedAnalysis.aiPromptData.institutional_flow,
+                large_trades_count: enhancedAnalysis.aiPromptData.large_trades_count,
+                market_stress: enhancedAnalysis.aiPromptData.market_stress,
+                premium_basis: enhancedAnalysis.aiPromptData.premium_basis,
+                arbitrage_opportunity: enhancedAnalysis.aiPromptData.arbitrage_opportunity,
+                mean_reversion_signal: enhancedAnalysis.aiPromptData.mean_reversion_signal,
+                liquidation_support_levels: enhancedAnalysis.aiPromptData.liquidation_support_levels,
+                cascade_risk: enhancedAnalysis.aiPromptData.cascade_risk,
+                funding_reset_potential: enhancedAnalysis.aiPromptData.funding_reset_potential,
+                whale_activity: enhancedAnalysis.aiPromptData.whale_activity,
+                // Keep enhanced analysis in separate field for debugging (not in main JSON)
+                _enhanced_debug: {
+                    metrics: enhancedAnalysis.enhancedMetrics,
+                    rawData: enhancedAnalysis.rawData
+                }
+            };
+            
+        } catch (error: any) {
+            console.error(`[${new Date().toISOString()}] ENHANCED: Enhanced analysis failed for ${contract}:`, error.message);
+            
+            if (schedulerLogger) {
+                schedulerLogger.log('ERROR', 'ENHANCED_ANALYSIS_ERROR', 
+                    `Enhanced analysis failed for ${contract}, continuing with basic analysis`, 
+                    { contract }, error);
+            }
+            
+            // Continue with basic analysis if enhanced fails
+            console.log(`[${new Date().toISOString()}] ENHANCED: Falling back to basic analysis for ${contract}`);
+        }
+    }
+
+    return basicPayload;
 }
 
 async function getAiTradeCall(
@@ -410,7 +486,7 @@ const analyzeTradeRecommendationsFlow = ai.defineFlow(
     const { contract, settle, tickerData } = input;
 
     const rawData = await fetchGateioData(settle, contract, input.interval, tickerData);
-    const analysisPayload = await prepareAnalysisPayload(rawData, contract);
+    const analysisPayload = await prepareAnalysisPayload(rawData, contract, input);
     const result = await getAiTradeCall(analysisPayload, input);
     const { aiCall, fullPrompt, rawResponse } = result;
     
@@ -448,6 +524,19 @@ const analyzeTradeRecommendationsFlow = ai.defineFlow(
       analysisPayload: analysisPayload,
       prompt: fullPrompt,
       rawResponse: rawResponse,
+      // Include enhanced analysis if present (experimental)
+      enhancedAnalysis: analysisPayload._enhanced_debug ? {
+        metrics: analysisPayload._enhanced_debug.metrics,
+        aiPromptData: {
+          liquidation_momentum: analysisPayload.liquidation_momentum,
+          funding_sentiment: analysisPayload.funding_sentiment,
+          market_stress: analysisPayload.market_stress,
+          arbitrage_opportunity: analysisPayload.arbitrage_opportunity,
+          cascade_risk: analysisPayload.cascade_risk,
+          whale_activity: analysisPayload.whale_activity
+        },
+        rawData: analysisPayload._enhanced_debug.rawData
+      } : undefined,
     };
 
     return output;

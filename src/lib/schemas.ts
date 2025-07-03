@@ -87,6 +87,7 @@ export const AnalyzeTradeRecommendationsInputSchema = z.object({
   promptTemplate: z.string(),
   threshold: z.number().min(0).max(100).optional(),
   tickerData: z.any().optional().describe('Pre-fetched ticker data to avoid redundant API calls.'),
+  enhancedAnalysisEnabled: z.boolean().optional().describe('Enable enhanced market microstructure analysis (experimental).'),
 });
 export type AnalyzeTradeRecommendationsInput = z.infer<typeof AnalyzeTradeRecommendationsInputSchema>;
 
@@ -134,6 +135,7 @@ export const AnalyzeTradeRecommendationsOutputSchema = z.object({
   prompt: z.string().optional().describe("The full prompt sent to the AI."),
   rawResponse: z.string().optional().describe("The raw, unparsed response from the AI model."),
   requestDetails: z.any().optional().describe("Detailed information about the AI request including model, parameters, and timing."),
+  enhancedAnalysis: z.any().optional().describe("Enhanced market microstructure analysis data (experimental)."),
 });
 export type AnalyzeTradeRecommendationsOutput = z.infer<typeof AnalyzeTradeRecommendationsOutputSchema>;
 
