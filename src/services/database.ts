@@ -767,6 +767,25 @@ Consider these factors in your analysis:
 5. Market volatility
 6. Recent price action context
 
+ADVANCED MARKET MICROSTRUCTURE (when available):
+- liquidation_momentum: Current liquidation trend direction
+- liquidation_pressure: Whether longs or shorts are being squeezed
+- liquidation_clusters: Price levels with liquidation concentration
+- key_liquidation_levels: Critical liquidation support/resistance areas
+- funding_sentiment: Market sentiment derived from funding rates
+- funding_extremity: How extreme current funding rates are (0-100)
+- funding_trend: Direction of funding rate changes
+- institutional_activity: Level of large trader activity (0-100)
+- buy_pressure_ratio: Buy vs sell pressure (0-100, 50=balanced)
+- market_stress_level: Overall market stress indicator (0-100)
+- premium_volatility: Volatility in futures premium (0-100)
+- arbitrage_opportunity: Whether arbitrage signals are present
+- mean_reversion_potential: Likelihood of mean reversion (0-100)
+- cascade_risk_present: Whether liquidation cascades are likely
+- overall_sentiment: Composite sentiment (bullish/bearish/neutral)
+- risk_score: Overall market risk level (0-100)
+- signal_strength: Strength of market signals (0-100)
+
 ########################
 ## 3. RISK MANAGEMENT ##
 ########################

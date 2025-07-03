@@ -138,24 +138,22 @@ export interface EnhancedMetrics {
 export interface AIPromptData {
   liquidation_momentum: string;
   liquidation_clusters: number[];
+  liquidation_pressure: string;
+  liquidation_rate_1h: number;
+  key_liquidation_levels: number[];
   funding_sentiment: string;
   funding_extremity: number;
-  institutional_flow: number;
-  buy_pressure: number;
-  market_stress: number;
-  overall_sentiment: string;
-  risk_level: number;
-  signal_strength: number;
-  liquidation_rate_1h: number;
-  funding_rate_current: string;
-  large_trades_count: number;
-  premium_basis: string;
+  funding_trend: string;
+  institutional_activity: number;
+  buy_pressure_ratio: number;
+  market_stress_level: number;
+  premium_volatility: number;
   arbitrage_opportunity: boolean;
-  mean_reversion_signal: boolean;
-  liquidation_support_levels: number[];
-  cascade_risk: boolean;
-  funding_reset_potential: boolean;
-  whale_activity: boolean;
+  mean_reversion_potential: number;
+  overall_sentiment: string;
+  risk_score: number;
+  signal_strength: number;
+  cascade_risk_present: boolean;
 }
 
 export interface EnhancedAnalysisResult {
@@ -705,33 +703,35 @@ function compileEnhancedAnalysis(
   };
 
   const aiPromptData: AIPromptData = {
-    // Market microstructure data for AI
+    // Market microstructure - cleaned and standardized
     liquidation_momentum: enhancedMetrics.liquidationMomentum,
     liquidation_clusters: enhancedMetrics.keyLiquidationLevels,
+    liquidation_pressure: liquidationAnalysis?.liquidationPressure || 'none',
+    liquidation_rate_1h: liquidationAnalysis?.recentLiquidationRate || 0,
+    key_liquidation_levels: enhancedMetrics.keyLiquidationLevels.slice(0, 3),
+    
+    // Funding analysis - simplified
     funding_sentiment: enhancedMetrics.sentimentSignal,
     funding_extremity: enhancedMetrics.fundingExtremity,
-    institutional_flow: enhancedMetrics.institutionalActivity,
-    buy_pressure: Math.round(enhancedMetrics.buyPressure * 100),
-    market_stress: enhancedMetrics.premiumStress,
-    overall_sentiment: enhancedMetrics.overallSentiment,
-    risk_level: enhancedMetrics.riskLevel,
-    signal_strength: enhancedMetrics.signalStrength,
+    funding_trend: fundingAnalysis?.rateTrend || 'stable',
     
-    // Detailed metrics
-    liquidation_rate_1h: liquidationAnalysis?.recentLiquidationRate || 0,
-    funding_rate_current: fundingAnalysis?.currentRatePercent || '0',
-    large_trades_count: tradingAnalysis?.largeTradeStats?.count || 0,
-    premium_basis: premiumAnalysis?.currentPremiumPercent || '0',
+    // Trading flows - clear metrics
+    institutional_activity: enhancedMetrics.institutionalActivity,
+    buy_pressure_ratio: Math.round(enhancedMetrics.buyPressure * 100),
     
-    // Action signals
+    // Market stress - consolidated
+    market_stress_level: Math.round(enhancedMetrics.premiumStress),
+    premium_volatility: Math.round((premiumAnalysis?.premiumVolatility || 0) * 100),
+    
+    // Opportunity signals - boolean flags
     arbitrage_opportunity: enhancedMetrics.arbitrageOpportunity,
-    mean_reversion_signal: (fundingAnalysis?.meanReversionScore || 0) > 2,
-    liquidation_support_levels: enhancedMetrics.keyLiquidationLevels.slice(0, 3),
+    mean_reversion_potential: enhancedMetrics.meanReversionPotential,
     
-    // Risk indicators
-    cascade_risk: liquidationAnalysis?.liquidationMomentum === 'increasing' && (liquidationAnalysis?.recentLiquidationRate || 0) > 2,
-    funding_reset_potential: (fundingAnalysis?.extremeRateScore || 0) > 70,
-    whale_activity: (tradingAnalysis?.institutionalActivity || 0) > 10
+    // Summary metrics - AI-ready
+    overall_sentiment: enhancedMetrics.overallSentiment,
+    risk_score: enhancedMetrics.riskLevel,
+    signal_strength: enhancedMetrics.signalStrength,
+    cascade_risk_present: liquidationAnalysis?.liquidationMomentum === 'increasing' && (liquidationAnalysis?.recentLiquidationRate || 0) > 2
   };
 
   return { enhancedMetrics, aiPromptData };
@@ -895,24 +895,22 @@ export async function getEnhancedMarketAnalysis(
       aiPromptData: {
         liquidation_momentum: 'stable',
         liquidation_clusters: [],
+        liquidation_pressure: 'none',
+        liquidation_rate_1h: 0,
+        key_liquidation_levels: [],
         funding_sentiment: 'neutral',
         funding_extremity: 0,
-        institutional_flow: 0,
-        buy_pressure: 50,
-        market_stress: 0,
-        overall_sentiment: 'neutral',
-        risk_level: 0,
-        signal_strength: 0,
-        liquidation_rate_1h: 0,
-        funding_rate_current: '0.0000',
-        large_trades_count: 0,
-        premium_basis: '0.0000',
+        funding_trend: 'stable',
+        institutional_activity: 0,
+        buy_pressure_ratio: 50,
+        market_stress_level: 0,
+        premium_volatility: 0,
         arbitrage_opportunity: false,
-        mean_reversion_signal: false,
-        liquidation_support_levels: [],
-        cascade_risk: false,
-        funding_reset_potential: false,
-        whale_activity: false
+        mean_reversion_potential: 0,
+        overall_sentiment: 'neutral',
+        risk_score: 0,
+        signal_strength: 0,
+        cascade_risk_present: false
       }
     };
   }

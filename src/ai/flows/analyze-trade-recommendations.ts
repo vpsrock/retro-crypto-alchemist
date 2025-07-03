@@ -314,23 +314,36 @@ async function prepareAnalysisPayload(
             // Add enhanced data to payload with natural field names
             return {
                 ...basicPayload,
-                // Present enhanced data as standard market microstructure
+                // Market microstructure - standardized and clean
                 liquidation_momentum: enhancedAnalysis.aiPromptData.liquidation_momentum,
+                liquidation_pressure: enhancedAnalysis.aiPromptData.liquidation_pressure,
                 liquidation_clusters: enhancedAnalysis.aiPromptData.liquidation_clusters,
                 liquidation_rate_1h: enhancedAnalysis.aiPromptData.liquidation_rate_1h,
+                key_liquidation_levels: enhancedAnalysis.aiPromptData.key_liquidation_levels,
+                
+                // Funding analysis - simplified 
                 funding_sentiment: enhancedAnalysis.aiPromptData.funding_sentiment,
                 funding_extremity: enhancedAnalysis.aiPromptData.funding_extremity,
-                funding_rate_current: enhancedAnalysis.aiPromptData.funding_rate_current,
-                institutional_flow: enhancedAnalysis.aiPromptData.institutional_flow,
-                large_trades_count: enhancedAnalysis.aiPromptData.large_trades_count,
-                market_stress: enhancedAnalysis.aiPromptData.market_stress,
-                premium_basis: enhancedAnalysis.aiPromptData.premium_basis,
+                funding_trend: enhancedAnalysis.aiPromptData.funding_trend,
+                
+                // Trading flows - clear metrics
+                institutional_activity: enhancedAnalysis.aiPromptData.institutional_activity,
+                buy_pressure_ratio: enhancedAnalysis.aiPromptData.buy_pressure_ratio,
+                
+                // Market stress - consolidated
+                market_stress_level: enhancedAnalysis.aiPromptData.market_stress_level,
+                premium_volatility: enhancedAnalysis.aiPromptData.premium_volatility,
+                
+                // Opportunity signals
                 arbitrage_opportunity: enhancedAnalysis.aiPromptData.arbitrage_opportunity,
-                mean_reversion_signal: enhancedAnalysis.aiPromptData.mean_reversion_signal,
-                liquidation_support_levels: enhancedAnalysis.aiPromptData.liquidation_support_levels,
-                cascade_risk: enhancedAnalysis.aiPromptData.cascade_risk,
-                funding_reset_potential: enhancedAnalysis.aiPromptData.funding_reset_potential,
-                whale_activity: enhancedAnalysis.aiPromptData.whale_activity,
+                mean_reversion_potential: enhancedAnalysis.aiPromptData.mean_reversion_potential,
+                
+                // Summary metrics for AI decision making
+                overall_sentiment: enhancedAnalysis.aiPromptData.overall_sentiment,
+                risk_score: enhancedAnalysis.aiPromptData.risk_score,
+                signal_strength: enhancedAnalysis.aiPromptData.signal_strength,
+                cascade_risk_present: enhancedAnalysis.aiPromptData.cascade_risk_present,
+                
                 // Keep enhanced analysis in separate field for debugging (not in main JSON)
                 _enhanced_debug: {
                     metrics: enhancedAnalysis.enhancedMetrics,

@@ -37,23 +37,25 @@ console.log(`{
   "macd": 0.0012,
   "funding_rate": "0.0001",
   
-  // Enhanced data presented as standard market microstructure
+  // Enhanced market microstructure - clean, professional fields
   "liquidation_momentum": "stable",
+  "liquidation_pressure": "balanced", 
   "liquidation_clusters": [44800, 45200],
   "liquidation_rate_1h": 2.5,
+  "key_liquidation_levels": [44500, 45500],
   "funding_sentiment": "neutral",
   "funding_extremity": 15,
-  "funding_rate_current": "0.0001",
-  "institutional_flow": 30,
-  "large_trades_count": 12,
-  "market_stress": 25,
-  "premium_basis": "0.02%",
+  "funding_trend": "stable",
+  "institutional_activity": 30,
+  "buy_pressure_ratio": 52,
+  "market_stress_level": 25,
+  "premium_volatility": 18,
   "arbitrage_opportunity": false,
-  "mean_reversion_signal": false,
-  "liquidation_support_levels": [44500, 45500],
-  "cascade_risk": false,
-  "funding_reset_potential": false,
-  "whale_activity": false
+  "mean_reversion_potential": 40,
+  "overall_sentiment": "neutral",
+  "risk_score": 35,
+  "signal_strength": 60,
+  "cascade_risk_present": false
 }`);
 
 console.log('\n🤖 Impact on AI Understanding:');
@@ -67,14 +69,23 @@ console.log('• AI can naturally incorporate microstructure signals in analysis
 console.log('\n📊 Enhanced Data Fields Now in Main Prompt:');
 console.log('===========================================');
 const fields = [
-  'liquidation_momentum - Market liquidation direction',
-  'liquidation_clusters - Price levels with liquidation concentration', 
-  'funding_sentiment - Market sentiment from funding rates',
-  'institutional_flow - Large trader activity level',
-  'market_stress - Overall market stress indicator',
-  'arbitrage_opportunity - Cross-market arbitrage signals',
-  'cascade_risk - Risk of liquidation cascades',
-  'whale_activity - Large institutional movements'
+  'liquidation_momentum - Market liquidation direction (stable/increasing/decreasing)',
+  'liquidation_pressure - Type of liquidation pressure (balanced/long_squeeze/short_squeeze)', 
+  'liquidation_clusters - Price levels with liquidation concentration',
+  'key_liquidation_levels - Critical liquidation support/resistance areas',
+  'funding_sentiment - Market sentiment from funding rates (bullish/bearish/neutral)',
+  'funding_extremity - How extreme current funding rates are (0-100)',
+  'funding_trend - Direction of funding rate changes (stable/increasing/decreasing)',
+  'institutional_activity - Large trader activity level (0-100)',
+  'buy_pressure_ratio - Buy vs sell pressure (0-100, 50=balanced)',
+  'market_stress_level - Overall market stress indicator (0-100)',
+  'premium_volatility - Volatility in futures premium (0-100)',
+  'arbitrage_opportunity - Cross-market arbitrage signals (boolean)',
+  'mean_reversion_potential - Likelihood of mean reversion (0-100)',
+  'overall_sentiment - Composite sentiment (bullish/bearish/neutral)',
+  'risk_score - Overall market risk level (0-100)',
+  'signal_strength - Strength of market signals (0-100)',
+  'cascade_risk_present - Risk of liquidation cascades (boolean)'
 ];
 
 fields.forEach(field => console.log(`• ${field}`));
