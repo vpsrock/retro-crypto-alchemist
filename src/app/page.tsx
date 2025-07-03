@@ -35,6 +35,7 @@ const defaultDiscoveryValues: DiscoveryValues = {
     sortBy: "score",
     tradeSizeUsd: 10,
     leverage: 10,
+    enhancedAnalysisEnabled: false,
 };
 
 export default function Home() {
@@ -403,7 +404,7 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
       openaiApiKey: config.apiKey,
       modelConfig: config.activeModel,
       promptTemplate: populatedPrompt,
-      enhancedAnalysisEnabled: false // For now, keep enhanced analysis disabled in UI for stability
+      enhancedAnalysisEnabled: data.enhancedAnalysisEnabled || false
     };
 
     const result = await runSingleContractAnalysis(analysisInput);
@@ -471,6 +472,7 @@ Your response MUST contain a single JSON code block with a valid JSON object ins
         openaiApiKey: config.apiKey,
         modelConfig: config.activeModel,
         promptTemplate: config.activePrompt.content.replace('[TIMEFRAME]', data.interval),
+        enhancedAnalysisEnabled: data.enhancedAnalysisEnabled || false,
     }));
     
     addLog(`ANALYSIS: Starting analysis for ${tasks.length} contracts with up to ${data.concurrency} parallel threads...`);

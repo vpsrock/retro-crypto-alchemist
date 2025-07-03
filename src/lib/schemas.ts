@@ -32,6 +32,7 @@ export const singleContractSchema = z.object({
   settle: z.enum(["usdt", "btc"]),
   interval: z.enum(["5m", "15m", "1h", "4h"]),
   threshold: z.number().min(0).max(100),
+  enhancedAnalysisEnabled: z.boolean().optional().default(false),
 });
 export type SingleContractValues = z.infer<typeof singleContractSchema>;
 
@@ -56,6 +57,7 @@ export const discoverySchema = z.object({
     sortBy: z.enum(["score", "volume", "change"]).default("score"),
     tradeSizeUsd: z.number().min(5).max(1000).default(10),
     leverage: z.number().min(1).max(100).default(10),
+    enhancedAnalysisEnabled: z.boolean().optional().default(false),
 });
 export type DiscoveryValues = z.infer<typeof discoverySchema>;
 
@@ -73,6 +75,7 @@ export const schedulerSchema = z.object({
     tradeSizeUsd: z.number().min(5).max(1000).default(10),
     leverage: z.number().min(1).max(100).default(10),
     isActive: z.boolean().default(true),
+    enhancedAnalysisEnabled: z.boolean().optional().default(false),
 });
 export type SchedulerValues = z.infer<typeof schedulerSchema>;
 

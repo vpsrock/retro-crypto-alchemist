@@ -35,6 +35,7 @@ export function AnalysisPanel({ onStartSingle, onStartMulti, onStartDiscovery, i
       settle: "usdt",
       interval: "15m",
       threshold: 75,
+      enhancedAnalysisEnabled: false,
     },
   });
 
@@ -205,6 +206,32 @@ export function AnalysisPanel({ onStartSingle, onStartMulti, onStartDiscovery, i
                         <FormControl><Slider defaultValue={[field.value]} min={1} max={100} step={1} onValueChange={(value) => field.onChange(value[0])}/></FormControl>
                       </FormItem>
                     )} />
+                    
+                    {/* Enhanced Analysis Toggle */}
+                    <FormField control={discoveryForm.control} name="enhancedAnalysisEnabled" render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center space-x-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              checked={field.value || false}
+                              onChange={field.onChange}
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                          </FormControl>
+                          <div className="flex-1">
+                            <FormLabel className="text-sm font-medium text-gray-900 flex items-center gap-2 cursor-pointer">
+                              Advanced Market Intelligence
+                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">BETA</span>
+                            </FormLabel>
+                            <p className="text-xs text-gray-600 mt-1">
+                              Include liquidation cascades, funding sentiment, institutional flow, and market microstructure data
+                            </p>
+                          </div>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
                  </div>
                 <div className="flex gap-2 pt-2">
                     <Button type="submit" disabled={isAnalyzing} className="flex-grow">
@@ -254,6 +281,32 @@ export function AnalysisPanel({ onStartSingle, onStartMulti, onStartDiscovery, i
                     <FormControl>
                         <Slider defaultValue={[75]} max={100} step={1} onValueChange={(value) => field.onChange(value[0])}/>
                     </FormControl>
+                  </FormItem>
+                )} />
+                
+                {/* Enhanced Analysis Toggle */}
+                <FormField control={singleForm.control} name="enhancedAnalysisEnabled" render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center space-x-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                      <FormControl>
+                        <input
+                          type="checkbox"
+                          checked={field.value || false}
+                          onChange={field.onChange}
+                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                      </FormControl>
+                      <div className="flex-1">
+                        <FormLabel className="text-sm font-medium text-gray-900 flex items-center gap-2 cursor-pointer">
+                          Advanced Market Intelligence
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">BETA</span>
+                        </FormLabel>
+                        <p className="text-xs text-gray-600 mt-1">
+                          Include liquidation cascades, funding sentiment, institutional flow, and market microstructure data
+                        </p>
+                      </div>
+                    </div>
+                    <FormMessage />
                   </FormItem>
                 )} />
                 <Button type="submit" disabled={isAnalyzing} className="w-full">

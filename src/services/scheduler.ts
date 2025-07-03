@@ -14,6 +14,7 @@ interface JobExecutionContext {
   tradeSizeUsd: number;
   leverage: number;
   threshold: number;
+  enhancedAnalysisEnabled: boolean;
 }
 
 class SchedulerService {
@@ -203,7 +204,8 @@ class SchedulerService {
         profilesConfig: [discoveryConfig],
         tradeSizeUsd: job.tradeSizeUsd,
         leverage: job.leverage,
-        threshold: job.threshold
+        threshold: job.threshold,
+        enhancedAnalysisEnabled: job.enhancedAnalysisEnabled || false
       };
 
       const tradesExecuted = await this.processContractsWithConcurrency(allDiscoveredContracts, executionContext, job.concurrency || 10);
@@ -380,7 +382,7 @@ class SchedulerService {
         promptTemplate: finalPrompt, // Use the modified prompt
         openaiApiKey, // Add the OpenAI API key
         tickerData: contractInfo.tickerData,
-        enhancedAnalysisEnabled: false // For now, keep enhanced analysis disabled in scheduler for stability
+        enhancedAnalysisEnabled: context.enhancedAnalysisEnabled || false
       };
 
       schedulerLogger.log('DEBUG', 'ANALYSIS', `Starting AI analysis for ${contractInfo.contract}`, {

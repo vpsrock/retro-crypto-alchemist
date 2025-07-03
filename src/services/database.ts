@@ -21,6 +21,7 @@ export interface ScheduledJob {
   tradeSizeUsd: number;
   leverage: number;
   isActive: boolean;
+  enhancedAnalysisEnabled: boolean;
   createdAt: number;
   lastRun?: number;
   nextRun?: number;
@@ -264,8 +265,8 @@ export async function createScheduledJob(job: Omit<ScheduledJob, 'id' | 'created
 
     const sql = `
       INSERT INTO scheduled_jobs 
-      (id, name, profiles, settle, interval, scheduleInterval, threshold, contractsPerProfile, concurrency, minVolume, sortBy, tradeSizeUsd, leverage, isActive, createdAt, nextRun)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, name, profiles, settle, interval, scheduleInterval, threshold, contractsPerProfile, concurrency, minVolume, sortBy, tradeSizeUsd, leverage, isActive, enhancedAnalysisEnabled, createdAt, nextRun)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     // Calculate next run time
@@ -274,7 +275,8 @@ export async function createScheduledJob(job: Omit<ScheduledJob, 'id' | 'created
     db.run(sql, [
       id, job.name, profiles, job.settle, job.interval, job.scheduleInterval,
       job.threshold, job.contractsPerProfile, job.concurrency || 10, job.minVolume, 
-      job.sortBy || 'score', job.tradeSizeUsd, job.leverage, job.isActive ? 1 : 0, createdAt, nextRun
+      job.sortBy || 'score', job.tradeSizeUsd, job.leverage, job.isActive ? 1 : 0, 
+      job.enhancedAnalysisEnabled ? 1 : 0, createdAt, nextRun
     ], function(err) {
       if (err) {
         reject(err);
@@ -300,7 +302,8 @@ export async function getScheduledJobById(id: string): Promise<ScheduledJob | nu
       resolve({ 
         ...row, 
         profiles: JSON.parse(row.profiles),
-        isActive: !!row.isActive
+        isActive: !!row.isActive,
+        enhancedAnalysisEnabled: !!row.enhancedAnalysisEnabled
       });
     });
   });
@@ -322,7 +325,8 @@ export async function getScheduledJobs(): Promise<ScheduledJob[]> {
       const jobs = rows.map(row => ({
         ...row,
         profiles: JSON.parse(row.profiles),
-        isActive: !!row.isActive
+        isActive: !!row.isActive,
+        enhancedAnalysisEnabled: !!row.enhancedAnalysisEnabled
       }));
       resolve(jobs);
     });
@@ -870,6 +874,7 @@ async function migrateDatabase(): Promise<void> {
       'ALTER TABLE scheduled_jobs ADD COLUMN concurrency INTEGER NOT NULL DEFAULT 10',
       'ALTER TABLE scheduled_jobs ADD COLUMN minVolume INTEGER NOT NULL DEFAULT 1000000',
       'ALTER TABLE scheduled_jobs ADD COLUMN sortBy TEXT NOT NULL DEFAULT "score"',
+      'ALTER TABLE scheduled_jobs ADD COLUMN enhancedAnalysisEnabled INTEGER NOT NULL DEFAULT 0',
     ];
 
     let completedMigrations = 0;
