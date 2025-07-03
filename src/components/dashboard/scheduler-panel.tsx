@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { schedulerSchema, type SchedulerValues } from "@/lib/schemas";
 import type { ScheduledJob, TradePosition, SchedulerStats } from "@/services/database";
-import { Clock, Play, Pause, TrendingUp, TrendingDown, DollarSign, BarChart3, Loader2 } from 'lucide-react';
+import { Clock, Play, Pause, TrendingUp, TrendingDown, DollarSign, BarChart3, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
 type SchedulerPanelProps = {
@@ -29,6 +29,7 @@ export function SchedulerPanel({ addLog }: SchedulerPanelProps) {
   const [stats, setStats] = React.useState<SchedulerStats | null>(null);
   const [isCreatingJob, setIsCreatingJob] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [deletingJobId, setDeletingJobId] = React.useState<string | null>(null);
 
   const schedulerForm = useForm<SchedulerValues>({
     resolver: zodResolver(schedulerSchema),
@@ -176,6 +177,36 @@ export function SchedulerPanel({ addLog }: SchedulerPanelProps) {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleDeleteJob = async (jobId: string, jobName: string) => {
+    try {
+      setDeletingJobId(jobId);
+      const response = await fetch(`/api/scheduler/jobs/${jobId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Job Deleted",
+          description: `Job "${jobName}" has been permanently deleted.`,
+        });
+        addLog(`SCHEDULER: Job deleted - ${jobName} (${jobId})`);
+        await loadJobs();
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete job');
+      }
+    } catch (error: any) {
+      toast({
+        title: "Job Deletion Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      addLog(`SCHEDULER ERROR: Failed to delete job - ${error.message}`);
+    } finally {
+      setDeletingJobId(null);
     }
   };
 
@@ -460,6 +491,19 @@ export function SchedulerPanel({ addLog }: SchedulerPanelProps) {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteJob(job.id, job.name)}
+                            disabled={deletingJobId === job.id}
+                            className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            {deletingJobId === job.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </Button>
                           <Switch
                             checked={job.isActive}
                             onCheckedChange={(checked) => handleToggleJob(job.id, checked)}
