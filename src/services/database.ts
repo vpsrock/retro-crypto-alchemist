@@ -358,6 +358,20 @@ export async function updateJobNextRun(jobId: string, nextRun: number): Promise<
   });
 }
 
+export async function updateJobScheduleInterval(jobId: string, scheduleInterval: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    db.run('UPDATE scheduled_jobs SET scheduleInterval = ? WHERE id = ?', [scheduleInterval, jobId], (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
 export async function toggleJobStatus(jobId: string, isActive: boolean): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!db) {

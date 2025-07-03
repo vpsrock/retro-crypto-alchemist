@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import schedulerService from '@/services/scheduler';
 
 export async function POST(request: NextRequest) {
   try {
     const { action, jobId } = await request.json();
-    
-    // Import scheduler service dynamically since it's server-side only
-    const { schedulerService } = await import('../../../../services/scheduler');
     
     if (action === 'start') {
       await schedulerService.activateJob(jobId);

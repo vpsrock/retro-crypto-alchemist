@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createScheduledJob, getScheduledJobs, toggleJobStatus, initDatabase } from '@/services/database';
 import { schedulerSchema } from '@/lib/schemas';
+import schedulerService from '@/services/scheduler';
 
 export async function GET() {
   try {
     // Ensure database is initialized
     await initDatabase();
     const jobs = await getScheduledJobs();
-    return NextResponse.json({ jobs });
+    
+    // Get live status for each job from scheduler
+    const jobsWithStatus = await Promise.all(
+      jobs.map(async (job) => {
+        const status = await schedulerService.getJobStatus(job.id);
+        return { ...job, ...status };
+      })
+    );
+    
+    return NextResponse.json({ jobs: jobsWithStatus });
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Failed to fetch scheduled jobs', details: error.message },
@@ -29,6 +39,15 @@ export async function POST(request: NextRequest) {
     
     const jobId = await createScheduledJob(validatedData);
     console.log('Created job with ID:', jobId);
+    
+    // Immediately sync the new job with the scheduler
+    try {
+      await schedulerService.syncJobFromDatabase(jobId);
+      console.log('Job synchronized with scheduler:', jobId);
+    } catch (syncError) {
+      console.warn('Failed to sync new job with scheduler:', syncError);
+      // Don't fail the entire request if sync fails
+    }
     
     return NextResponse.json({ success: true, jobId, message: 'Scheduled job created successfully' });
   } catch (error: any) {
@@ -58,6 +77,16 @@ export async function PATCH(request: NextRequest) {
     }
     
     await toggleJobStatus(jobId, isActive);
+    
+    // Immediately sync the job status change with the scheduler
+    try {
+      await schedulerService.syncJobFromDatabase(jobId);
+      console.log(`Job ${jobId} status updated and synchronized with scheduler`);
+    } catch (syncError) {
+      console.warn('Failed to sync job status change with scheduler:', syncError);
+      // Don't fail the entire request if sync fails
+    }
+    
     return NextResponse.json({ success: true, message: `Job ${isActive ? 'activated' : 'deactivated'} successfully` });
   } catch (error: any) {
     return NextResponse.json(

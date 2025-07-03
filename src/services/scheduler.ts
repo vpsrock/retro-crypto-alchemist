@@ -17,11 +17,23 @@ interface JobExecutionContext {
 }
 
 class SchedulerService {
+  private static instance: SchedulerService | null = null;
   private runningJobs: Set<string> = new Set();
   private jobIntervals: Map<string, NodeJS.Timeout> = new Map();
   private positionMonitorInterval?: NodeJS.Timeout;
   private orphanCleanupInterval?: NodeJS.Timeout;
+  private dbSyncInterval?: NodeJS.Timeout;
   private isInitialized = false;
+
+  // Private constructor for singleton pattern
+  private constructor() {}
+
+  public static getInstance(): SchedulerService {
+    if (!SchedulerService.instance) {
+      SchedulerService.instance = new SchedulerService();
+    }
+    return SchedulerService.instance;
+  }
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
@@ -37,6 +49,9 @@ class SchedulerService {
     
     // Load and restart active jobs
     await this.loadAndStartActiveJobs();
+    
+    // Start database synchronization
+    this.startDatabaseSync();
     
     this.isInitialized = true;
     console.log('Scheduler service initialized successfully');
@@ -87,13 +102,15 @@ class SchedulerService {
 
     this.jobIntervals.set(job.id, interval);
 
-    // Also run immediately if it's the first time or overdue
+    // Also run immediately if it's the first time, overdue, or just activated
     const shouldRunNow = !job.lastRun || 
-      (job.nextRun && now >= job.nextRun);
+      (job.nextRun && now >= job.nextRun) ||
+      (!job.nextRun && job.lastRun); // Handle reactivated jobs that have run before
     
     if (shouldRunNow) {
-      console.log(`Running job ${job.id} immediately...`);
-      setTimeout(() => this.executeJob(job), 1000); // Small delay to avoid blocking
+      console.log(`Running job ${job.id} immediately as it is new, overdue, or just activated...`);
+      // Use setImmediate to run after the current event loop cycle completes
+      setImmediate(() => this.executeJob(job));
     }
   }
 
@@ -631,36 +648,168 @@ class SchedulerService {
     };
   }
 
-  async shutdown(): Promise<void> {
-    console.log('Shutting down scheduler service...');
-    
-    // Clear all job intervals
-    for (const [jobId, interval] of this.jobIntervals) {
-      clearInterval(interval);
+  /**
+   * Synchronize a specific job from database - handles creation, activation, deactivation, deletion
+   */
+  async syncJobFromDatabase(jobId: string): Promise<void> {
+    try {
+      schedulerLogger.log('INFO', 'SCHEDULER', `Syncing job ${jobId} from database`);
+      
+      const job = await database.getScheduledJobById(jobId);
+      
+      if (!job) {
+        // Job was deleted - unschedule it
+        schedulerLogger.log('INFO', 'SCHEDULER', `Job ${jobId} not found in database, unscheduling`);
+        await this.unscheduleJob(jobId);
+        return;
+      }
+      
+      const isCurrentlyScheduled = this.jobIntervals.has(jobId);
+      
+      if (job.isActive && !isCurrentlyScheduled) {
+        // Job is active but not scheduled - schedule it
+        schedulerLogger.log('INFO', 'SCHEDULER', `Job ${jobId} is active but not scheduled, scheduling now`);
+        await this.scheduleJob(job);
+      } else if (!job.isActive && isCurrentlyScheduled) {
+        // Job is inactive but scheduled - unschedule it
+        schedulerLogger.log('INFO', 'SCHEDULER', `Job ${jobId} is inactive but scheduled, unscheduling now`);
+        await this.unscheduleJob(jobId);
+      } else if (job.isActive && isCurrentlyScheduled) {
+        // Job is active and scheduled - check if it needs rescheduling (schedule interval might have changed)
+        schedulerLogger.log('DEBUG', 'SCHEDULER', `Job ${jobId} is active and scheduled, checking for updates`);
+        // For simplicity, we'll reschedule it to pick up any configuration changes
+        await this.unscheduleJob(jobId);
+        await this.scheduleJob(job);
+      }
+      
+      schedulerLogger.log('SUCCESS', 'SCHEDULER', `Job ${jobId} synchronized successfully`);
+    } catch (error) {
+      schedulerLogger.log('ERROR', 'SCHEDULER', `Failed to sync job ${jobId}`, { jobId }, error);
+      console.error(`Error syncing job ${jobId}:`, error);
     }
-    this.jobIntervals.clear();
-
-    // Clear position monitoring
-    if (this.positionMonitorInterval) {
-      clearInterval(this.positionMonitorInterval);
-    }
-
-    // Clear orphan order cleanup
-    if (this.orphanCleanupInterval) {
-      clearInterval(this.orphanCleanupInterval);
-    }
-
-    // Clear orphan order cleanup
-    if (this.orphanCleanupInterval) {
-      clearInterval(this.orphanCleanupInterval);
-    }
-
-    this.isInitialized = false;
-    console.log('Scheduler service shut down');
   }
 
+  /**
+   * Periodic database synchronization to catch any missed changes
+   */
+  private startDatabaseSync(): void {
+    if (this.dbSyncInterval) {
+      clearInterval(this.dbSyncInterval);
+    }
+    
+    schedulerLogger.log('INFO', 'SCHEDULER', 'Starting periodic database synchronization (every 60 seconds)');
+    console.log('Starting periodic database synchronization...');
+    
+    // Sync with database every 60 seconds to catch any missed changes
+    this.dbSyncInterval = setInterval(async () => {
+      await this.syncAllJobsFromDatabase();
+    }, 60000);
+
+    // Also run after 10 seconds on startup
+    setTimeout(() => this.syncAllJobsFromDatabase(), 10000);
+  }
+
+  /**
+   * Sync all jobs from database
+   */
+  private async syncAllJobsFromDatabase(): Promise<void> {
+    try {
+      schedulerLogger.log('DEBUG', 'SCHEDULER', 'Running periodic database sync');
+      
+      const dbJobs = await database.getScheduledJobs();
+      const scheduledJobIds = new Set(this.jobIntervals.keys());
+      const dbJobIds = new Set(dbJobs.map(j => j.id));
+      
+      // Check for new or updated jobs
+      for (const job of dbJobs) {
+        if (job.isActive && !scheduledJobIds.has(job.id)) {
+          schedulerLogger.log('INFO', 'SCHEDULER', `Found new active job during sync: ${job.id}`, { jobId: job.id });
+          await this.scheduleJob(job);
+        } else if (!job.isActive && scheduledJobIds.has(job.id)) {
+          schedulerLogger.log('INFO', 'SCHEDULER', `Found deactivated job during sync: ${job.id}`, { jobId: job.id });
+          await this.unscheduleJob(job.id);
+        }
+      }
+      
+      // Check for deleted jobs
+      for (const scheduledJobId of scheduledJobIds) {
+        if (!dbJobIds.has(scheduledJobId)) {
+          schedulerLogger.log('INFO', 'SCHEDULER', `Found deleted job during sync: ${scheduledJobId}`, { jobId: scheduledJobId });
+          await this.unscheduleJob(scheduledJobId);
+        }
+      }
+      
+      schedulerLogger.log('DEBUG', 'SCHEDULER', 'Periodic database sync completed', {
+        totalDbJobs: dbJobs.length,
+        activeDbJobs: dbJobs.filter(j => j.isActive).length,
+        scheduledJobs: scheduledJobIds.size
+      });
+    } catch (error) {
+      schedulerLogger.log('ERROR', 'SCHEDULER', 'Database sync failed', {}, error);
+      console.error('Database sync error:', error);
+    }
+  }
+
+  /**
+   * Force immediate execution of a job (for manual triggers)
+   */
+  async executeJobNow(jobId: string): Promise<void> {
+    const jobs = await database.getScheduledJobs();
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) {
+      throw new Error('Job not found');
+    }
+    if (!job.isActive) {
+      throw new Error('Job is not active');
+    }
+    
+    schedulerLogger.log('INFO', 'SCHEDULER', `Manual execution triggered for job ${jobId}`);
+    await this.executeJob(job);
+  }
+
+  private async getApiKeysFromDatabase(): Promise<{ gateIoKey: string; gateIoSecret: string }> {
+    try {
+      // Use direct database call instead of HTTP fetch to avoid server-side fetch issues
+      const apiKeys = await database.getApiKeys();
+      
+      if (!apiKeys.gateIoKey || !apiKeys.gateIoSecret) {
+        console.warn('API keys not found in database');
+        return { gateIoKey: '', gateIoSecret: '' };
+      }
+      
+      // Validate that keys are not placeholder values
+      if (apiKeys.gateIoKey.includes('your_gate_io') || apiKeys.gateIoSecret.includes('your_gate_io')) {
+        console.warn('API keys appear to be placeholder values');
+        return { gateIoKey: '', gateIoSecret: '' };
+      }
+      
+      return {
+        gateIoKey: apiKeys.gateIoKey,
+        gateIoSecret: apiKeys.gateIoSecret
+      };
+    } catch (error) {
+      console.error('Error retrieving API keys from database:', error);
+      return { gateIoKey: '', gateIoSecret: '' };
+    }
+  }
+
+  private async validateApiKeys(apiKey: string, apiSecret: string): Promise<boolean> {
+    if (!apiKey || !apiSecret) return false;
+    if (apiKey.length < 10 || apiSecret.length < 10) return false;
+    if (apiKey.includes('your_gate_io') || apiSecret.includes('your_gate_io')) return false;
+    return true;
+  }
+
+  /**
+   * Start orphan order cleanup service
+   */
   private startOrphanOrderCleanup(): void {
+    if (this.orphanCleanupInterval) {
+      clearInterval(this.orphanCleanupInterval);
+    }
+    
     console.log('Starting orphan order cleanup service...');
+    schedulerLogger.log('INFO', 'SCHEDULER', 'Starting orphan order cleanup service (every 10 minutes)');
     
     // Clean up orphan orders every 10 minutes
     this.orphanCleanupInterval = setInterval(async () => {
@@ -671,6 +820,9 @@ class SchedulerService {
     setTimeout(() => this.cleanupOrphanOrders(), 30000);
   }
 
+  /**
+   * Execute orphan order cleanup
+   */
   private async cleanupOrphanOrders(): Promise<void> {
     try {
       schedulerLogger.log('INFO', 'CLEANUP', 'Starting orphan order cleanup');
@@ -717,51 +869,44 @@ class SchedulerService {
     }
   }
 
-  async executeJobNow(jobId: string): Promise<void> {
-    const jobs = await database.getScheduledJobs();
-    const job = jobs.find(j => j.id === jobId);
-    if (!job) {
-      throw new Error('Job not found');
+  /**
+   * Graceful shutdown of the scheduler service
+   */
+  async shutdown(): Promise<void> {
+    console.log('Shutting down scheduler service...');
+    schedulerLogger.log('INFO', 'SCHEDULER', 'Scheduler service shutdown initiated');
+    
+    // Clear all job intervals
+    for (const [jobId, interval] of this.jobIntervals) {
+      clearInterval(interval);
+      schedulerLogger.log('INFO', 'SCHEDULER', `Cleared interval for job ${jobId}`);
     }
-    if (!job.isActive) {
-      throw new Error('Job is not active');
-    }
-    await this.executeJob(job);
-  }
+    this.jobIntervals.clear();
 
-  private async getApiKeysFromDatabase(): Promise<{ gateIoKey: string; gateIoSecret: string }> {
-    try {
-      // Use direct database call instead of HTTP fetch to avoid server-side fetch issues
-      const apiKeys = await database.getApiKeys();
-      
-      if (!apiKeys.gateIoKey || !apiKeys.gateIoSecret) {
-        console.warn('API keys not found in database');
-        return { gateIoKey: '', gateIoSecret: '' };
-      }
-      
-      // Validate that keys are not placeholder values
-      if (apiKeys.gateIoKey.includes('your_gate_io') || apiKeys.gateIoSecret.includes('your_gate_io')) {
-        console.warn('API keys appear to be placeholder values');
-        return { gateIoKey: '', gateIoSecret: '' };
-      }
-      
-      return {
-        gateIoKey: apiKeys.gateIoKey,
-        gateIoSecret: apiKeys.gateIoSecret
-      };
-    } catch (error) {
-      console.error('Error retrieving API keys from database:', error);
-      return { gateIoKey: '', gateIoSecret: '' };
+    // Clear position monitoring
+    if (this.positionMonitorInterval) {
+      clearInterval(this.positionMonitorInterval);
+      schedulerLogger.log('INFO', 'SCHEDULER', 'Stopped position monitoring');
     }
-  }
 
-  private async validateApiKeys(apiKey: string, apiSecret: string): Promise<boolean> {
-    if (!apiKey || !apiSecret) return false;
-    if (apiKey.length < 10 || apiSecret.length < 10) return false;
-    if (apiKey.includes('your_gate_io') || apiSecret.includes('your_gate_io')) return false;
-    return true;
+    // Clear orphan order cleanup
+    if (this.orphanCleanupInterval) {
+      clearInterval(this.orphanCleanupInterval);
+      schedulerLogger.log('INFO', 'SCHEDULER', 'Stopped orphan order cleanup');
+    }
+
+    // Clear database sync
+    if (this.dbSyncInterval) {
+      clearInterval(this.dbSyncInterval);
+      schedulerLogger.log('INFO', 'SCHEDULER', 'Stopped database synchronization');
+    }
+
+    this.isInitialized = false;
+    schedulerLogger.log('INFO', 'SCHEDULER', 'Scheduler service shut down successfully');
+    console.log('Scheduler service shut down');
   }
 }
 
 // Singleton instance
-export const schedulerService = new SchedulerService();
+export const schedulerService = SchedulerService.getInstance();
+export default schedulerService;

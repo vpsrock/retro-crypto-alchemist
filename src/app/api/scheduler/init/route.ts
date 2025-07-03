@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDatabase } from '@/services/database';
+import schedulerService from '@/services/scheduler';
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,7 +8,6 @@ export async function POST(request: NextRequest) {
     await initDatabase();
     
     // Initialize scheduler service
-    const { schedulerService } = await import('../../../../services/scheduler');
     await schedulerService.initialize();
     
     return NextResponse.json({ 

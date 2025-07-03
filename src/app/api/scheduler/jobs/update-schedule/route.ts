@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as database from '@/services/database';
+import schedulerService from '@/services/scheduler';
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -36,6 +37,15 @@ export async function PATCH(request: NextRequest) {
 
     // Update the schedule interval
     await database.updateJobScheduleInterval(jobId, scheduleInterval);
+
+    // Sync the updated job with the scheduler
+    try {
+      await schedulerService.syncJobFromDatabase(jobId);
+      console.log(`Job ${jobId} schedule updated and synchronized with scheduler`);
+    } catch (syncError) {
+      console.warn('Failed to sync job schedule update with scheduler:', syncError);
+      // Don't fail the entire request if sync fails
+    }
 
     return NextResponse.json({ 
       success: true, 

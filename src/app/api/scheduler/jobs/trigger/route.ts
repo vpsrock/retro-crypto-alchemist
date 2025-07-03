@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { schedulerService } from '@/services/scheduler';
+import schedulerService from '@/services/scheduler';
 import * as database from '@/services/database';
 
 export async function GET() {
