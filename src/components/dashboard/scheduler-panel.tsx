@@ -45,6 +45,7 @@ export function SchedulerPanel({ addLog }: SchedulerPanelProps) {
       tradeSizeUsd: 10,
       leverage: 10,
       isActive: true,
+      enhancedAnalysisEnabled: false,
     },
   });
 
@@ -398,6 +399,32 @@ export function SchedulerPanel({ addLog }: SchedulerPanelProps) {
                     </FormItem>
                   )} />
                 </div>
+
+                {/* Enhanced Analysis Toggle */}
+                <FormField control={schedulerForm.control} name="enhancedAnalysisEnabled" render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center space-x-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                      <FormControl>
+                        <input
+                          type="checkbox"
+                          checked={field.value || false}
+                          onChange={field.onChange}
+                          className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                      </FormControl>
+                      <div className="flex-1">
+                        <FormLabel className="text-sm font-medium text-gray-900 flex items-center gap-2 cursor-pointer">
+                          Advanced Market Intelligence
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">BETA</span>
+                        </FormLabel>
+                        <p className="text-xs text-gray-600 mt-1">
+                          Include liquidation cascades, funding sentiment, institutional flow, and market microstructure data in automated analysis
+                        </p>
+                      </div>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )} />
 
                 <Button type="submit" disabled={isCreatingJob} className="w-full">
                   {isCreatingJob ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
