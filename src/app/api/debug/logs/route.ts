@@ -1,8 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { addDebugLog, getDebugLogs, clearDebugLogs } from '@/lib/debug-logger';
 
-export { addDebugLog } from '@/lib/debug-logger';
-
 export async function GET() {
   return NextResponse.json(getDebugLogs());
 }
