@@ -3,6 +3,7 @@ import { discoverContracts, type DiscoverContractsInput } from '../ai/flows/disc
 import { analyzeTradeRecommendations, analyzeTradeRecommendationsWithLogger } from '../ai/flows/analyze-trade-recommendations';
 import { cleanupOrphanedOrders, placeTradeStrategy } from '../ai/flows/trade-management';
 import { schedulerLogger } from '../lib/scheduler-logs';
+import { listPositions } from './gateio';
 
 // Re-export types from database
 export type { ScheduledJob, TradePosition, SchedulerStats } from './database';
@@ -200,36 +201,55 @@ class SchedulerService {
       // OPTIMIZATION: Exclude contracts with open positions to reduce AI token costs and avoid redundant trades
       let filteredContracts = allDiscoveredContracts;
       try {
-        schedulerLogger.log('INFO', 'ANALYSIS', 'Fetching open positions to exclude contracts', { 
+        schedulerLogger.log('INFO', 'ANALYSIS', 'Fetching open positions from Gate.io API to exclude contracts', { 
           jobId: job.id,
           totalDiscovered: allDiscoveredContracts.length 
         });
-        
-        const openPositions = await database.getOpenPositions();
-        const openContracts = new Set(openPositions.map(pos => pos.contract));
-        
-        schedulerLogger.log('INFO', 'ANALYSIS', `Found ${openPositions.length} open positions`, {
-          openContracts: Array.from(openContracts),
-          openPositionIds: openPositions.map(pos => pos.id)
-        });
-        
-        const contractsToExclude = allDiscoveredContracts.filter(c => openContracts.has(c.contract));
-        filteredContracts = allDiscoveredContracts.filter(c => !openContracts.has(c.contract));
-        
-        if (contractsToExclude.length > 0) {
-          schedulerLogger.log('INFO', 'ANALYSIS', `Excluded ${contractsToExclude.length} contracts with open positions`, {
-            excludedContracts: contractsToExclude.map(c => c.contract),
-            remainingContracts: filteredContracts.length,
-            tokensSaved: `~${contractsToExclude.length * 4000} tokens (estimated)`
-          });
-          
-          console.log(`Excluded ${contractsToExclude.length} contracts with open positions: [${contractsToExclude.map(c => c.contract).join(', ')}]`);
-          console.log(`Remaining ${filteredContracts.length} contracts for analysis (saved ~${contractsToExclude.length * 4000} AI tokens)`);
+
+        // Get API keys for fetching positions
+        const apiKeys = await this.getApiKeysFromDatabase();
+        if (!await this.validateApiKeys(apiKeys.gateIoKey, apiKeys.gateIoSecret)) {
+          schedulerLogger.log('WARN', 'ANALYSIS', 'Skipping position filtering: Invalid Gate.io API keys', { jobId: job.id });
+          console.warn('Skipping position filtering: Invalid Gate.io API keys.');
         } else {
-          schedulerLogger.log('INFO', 'ANALYSIS', 'No contracts excluded - no open positions found');
-          console.log('No contracts excluded - no open positions match discovered contracts');
+          // Fetch open positions from Gate.io for both USDT and BTC settle markets
+          const [usdtPositions, btcPositions] = await Promise.all([
+            listPositions('usdt', apiKeys.gateIoKey, apiKeys.gateIoSecret).catch(e => {
+              schedulerLogger.log('ERROR', 'ANALYSIS', 'Failed to fetch USDT positions from Gate.io', { jobId: job.id }, e);
+              console.error('Failed to fetch USDT positions from Gate.io:', e);
+              return []; // Return empty array on error to not fail the whole job
+            }),
+            listPositions('btc', apiKeys.gateIoKey, apiKeys.gateIoSecret).catch(e => {
+              schedulerLogger.log('ERROR', 'ANALYSIS', 'Failed to fetch BTC positions from Gate.io', { jobId: job.id }, e);
+              console.error('Failed to fetch BTC positions from Gate.io:', e);
+              return []; // Return empty array on error
+            })
+          ]);
+
+          const allOpenPositions = [...(usdtPositions || []), ...(btcPositions || [])];
+          const openContracts = new Set(allOpenPositions.map(pos => pos.contract));
+
+          schedulerLogger.log('INFO', 'ANALYSIS', `Found ${allOpenPositions.length} open positions on Gate.io`, {
+            openContracts: Array.from(openContracts),
+          });
+
+          const contractsToExclude = allDiscoveredContracts.filter(c => openContracts.has(c.contract));
+          filteredContracts = allDiscoveredContracts.filter(c => !openContracts.has(c.contract));
+
+          if (contractsToExclude.length > 0) {
+            schedulerLogger.log('INFO', 'ANALYSIS', `Excluded ${contractsToExclude.length} contracts with open positions`, {
+              excludedContracts: contractsToExclude.map(c => c.contract),
+              remainingContracts: filteredContracts.length,
+              tokensSaved: `~${contractsToExclude.length * 4000} tokens (estimated)`
+            });
+            
+            console.log(`Excluded ${contractsToExclude.length} contracts with open positions: [${contractsToExclude.map(c => c.contract).join(', ')}]`);
+            console.log(`Remaining ${filteredContracts.length} contracts for analysis (saved ~${contractsToExclude.length * 4000} AI tokens)`);
+          } else {
+            schedulerLogger.log('INFO', 'ANALYSIS', 'No contracts excluded - no open positions found for discovered contracts');
+            console.log('No contracts excluded - no open positions match discovered contracts');
+          }
         }
-        
       } catch (filterError) {
         // Log error but don't fail the entire job - proceed with all discovered contracts
         schedulerLogger.log('ERROR', 'ANALYSIS', 'Failed to fetch open positions for filtering, proceeding with all contracts', {
