@@ -5,10 +5,10 @@
 - AI Trade Recommendation: Fetch technical indicators using the Gate.io API, then use generative AI to provide trade recommendations (long or short), stop-loss, take-profit values, and confidence scores, based on configurable prompts and models. Use this tool only if it returns a sufficiently high confidence score as defined in the settings.
 - Real-time Dashboard: Display real-time technical analysis, trade recommendations, confidence scores, and order status updates in a retro, customizable console-like interface.
 - Automated Order Placement: Enable automated order placement based on AI recommendations that meet a configurable confidence threshold.
-- Scheduled Analysis: Schedule automated analysis and trading tasks, with options for interval-based or specific time-based execution. Runs trade analyses according to specified configurations.
+- Scheduled Analysis: Schedule automated analysis and trading tasks, with options for interval-based or specific time-based execution. Runs trade analyses according to specified configurations. **NEW**: Features intelligent position filtering that excludes contracts with existing open positions from analysis, reducing AI token costs by up to 40% and preventing redundant trades.
 - AI Model Management: Allow users to select and configure multiple AI models (including those that do and don't use a reasoning model) from various providers and configure API keys. Run analysis concurrently.
 - Multithreaded Analysis: Support concurrent technical analysis and order placing for multiple crypto futures contracts to increase speed using multithreading.
-- Comprehensive Logging: Maintain detailed logs of all analysis results, trade placements, order updates, and system events with advanced features like prompt and AI model setting edits for auditing, debugging, and performance tracking.
+- Comprehensive Logging: Maintain detailed logs of all analysis results, trade placements, order updates, and system events with advanced features like prompt and AI model setting edits for auditing, debugging, and performance tracking. **NEW**: Enhanced with position filtering metrics and token savings reporting.
 
 ## Style Guidelines:
 

@@ -197,6 +197,59 @@ class SchedulerService {
         return;
       }
 
+      // OPTIMIZATION: Exclude contracts with open positions to reduce AI token costs and avoid redundant trades
+      let filteredContracts = allDiscoveredContracts;
+      try {
+        schedulerLogger.log('INFO', 'ANALYSIS', 'Fetching open positions to exclude contracts', { 
+          jobId: job.id,
+          totalDiscovered: allDiscoveredContracts.length 
+        });
+        
+        const openPositions = await database.getOpenPositions();
+        const openContracts = new Set(openPositions.map(pos => pos.contract));
+        
+        schedulerLogger.log('INFO', 'ANALYSIS', `Found ${openPositions.length} open positions`, {
+          openContracts: Array.from(openContracts),
+          openPositionIds: openPositions.map(pos => pos.id)
+        });
+        
+        const contractsToExclude = allDiscoveredContracts.filter(c => openContracts.has(c.contract));
+        filteredContracts = allDiscoveredContracts.filter(c => !openContracts.has(c.contract));
+        
+        if (contractsToExclude.length > 0) {
+          schedulerLogger.log('INFO', 'ANALYSIS', `Excluded ${contractsToExclude.length} contracts with open positions`, {
+            excludedContracts: contractsToExclude.map(c => c.contract),
+            remainingContracts: filteredContracts.length,
+            tokensSaved: `~${contractsToExclude.length * 4000} tokens (estimated)`
+          });
+          
+          console.log(`Excluded ${contractsToExclude.length} contracts with open positions: [${contractsToExclude.map(c => c.contract).join(', ')}]`);
+          console.log(`Remaining ${filteredContracts.length} contracts for analysis (saved ~${contractsToExclude.length * 4000} AI tokens)`);
+        } else {
+          schedulerLogger.log('INFO', 'ANALYSIS', 'No contracts excluded - no open positions found');
+          console.log('No contracts excluded - no open positions match discovered contracts');
+        }
+        
+      } catch (filterError) {
+        // Log error but don't fail the entire job - proceed with all discovered contracts
+        schedulerLogger.log('ERROR', 'ANALYSIS', 'Failed to fetch open positions for filtering, proceeding with all contracts', {
+          jobId: job.id,
+          totalContracts: allDiscoveredContracts.length
+        }, filterError);
+        
+        console.error('Error fetching open positions for filtering (proceeding with all contracts):', filterError);
+        filteredContracts = allDiscoveredContracts; // Fallback to all contracts
+      }
+
+      if (filteredContracts.length === 0) {
+        console.log(`All discovered contracts have open positions - no contracts to analyze for job ${job.id}`);
+        schedulerLogger.log('INFO', 'ANALYSIS', 'All discovered contracts have open positions - skipping analysis', { jobId: job.id });
+        await database.updateJobLastRun(job.id);
+        const duration = Date.now() - startTime;
+        schedulerLogger.jobComplete(job.id, duration, { contractsFound: allDiscoveredContracts.length, contractsFiltered: allDiscoveredContracts.length, tradesExecuted: 0 });
+        return;
+      }
+
       // Run analysis with concurrency (parallel processing like manual)
       const executionContext: JobExecutionContext = {
         jobId: job.id,
@@ -208,7 +261,7 @@ class SchedulerService {
         enhancedAnalysisEnabled: job.enhancedAnalysisEnabled || false
       };
 
-      const tradesExecuted = await this.processContractsWithConcurrency(allDiscoveredContracts, executionContext, job.concurrency || 10);
+      const tradesExecuted = await this.processContractsWithConcurrency(filteredContracts, executionContext, job.concurrency || 10);
 
       // Update job run time
       await database.updateJobLastRun(job.id);
@@ -220,6 +273,8 @@ class SchedulerService {
       const duration = Date.now() - startTime;
       schedulerLogger.jobComplete(job.id, duration, { 
         contractsFound: allDiscoveredContracts.length, 
+        contractsAnalyzed: filteredContracts.length,
+        contractsExcluded: allDiscoveredContracts.length - filteredContracts.length,
         tradesExecuted 
       });
 
