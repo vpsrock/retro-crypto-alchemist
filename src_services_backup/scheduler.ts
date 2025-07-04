@@ -3,7 +3,7 @@ import { discoverContracts, type DiscoverContractsInput } from '../ai/flows/disc
 import { analyzeTradeRecommendations, analyzeTradeRecommendationsWithLogger } from '../ai/flows/analyze-trade-recommendations';
 import { cleanupOrphanedOrders, placeTradeStrategy } from '../ai/flows/trade-management';
 import { schedulerLogger } from '../lib/scheduler-logs';
-import { listPositions } from './gateio';
+import { listPositions, listPriceTriggeredOrders, closePosition } from './gateio';
 
 // Re-export types from database
 export type { ScheduledJob, TradePosition, SchedulerStats } from './database';
@@ -226,12 +226,10 @@ class SchedulerService {
             })
           ]);
 
-          const allPositions = [...(usdtPositions || []), ...(btcPositions || [])];
-          // Filter for truly open positions (non-zero size)
-          const allOpenPositions = allPositions.filter(pos => parseFloat(pos.size) !== 0);
+          const allOpenPositions = [...(usdtPositions || []), ...(btcPositions || [])];
           const openContracts = new Set(allOpenPositions.map(pos => pos.contract));
 
-          schedulerLogger.log('INFO', 'ANALYSIS', `Found ${allOpenPositions.length} open positions out of ${allPositions.length} total positions on Gate.io`, {
+          schedulerLogger.log('INFO', 'ANALYSIS', `Found ${allOpenPositions.length} open positions on Gate.io`, {
             openContracts: Array.from(openContracts),
           });
 
@@ -881,15 +879,15 @@ class SchedulerService {
   }
 
   /**
-   * Start orphan order cleanup service
+   * Start orphan order cleanup and position safety service
    */
   private startOrphanOrderCleanup(): void {
     if (this.orphanCleanupInterval) {
       clearInterval(this.orphanCleanupInterval);
     }
     
-    console.log('Starting orphan order cleanup service...');
-    schedulerLogger.log('INFO', 'SCHEDULER', 'Starting orphan order cleanup service (every 10 minutes)');
+    console.log('Starting orphan order cleanup and position safety service...');
+    schedulerLogger.log('INFO', 'SCHEDULER', 'Starting orphan order cleanup and position safety service (every 10 minutes)');
     
     // Clean up orphan orders every 10 minutes
     this.orphanCleanupInterval = setInterval(async () => {
@@ -901,18 +899,18 @@ class SchedulerService {
   }
 
   /**
-   * Execute orphan order cleanup
+   * Execute orphan order cleanup and position safety check
    */
   private async cleanupOrphanOrders(): Promise<void> {
     try {
-      schedulerLogger.log('INFO', 'CLEANUP', 'Starting orphan order cleanup');
-      console.log('Running orphan order cleanup...');
+      schedulerLogger.log('INFO', 'CLEANUP', 'Starting orphan order cleanup and position safety check');
+      console.log('Running orphan order cleanup and position safety check...');
       
       // Get API keys directly from database (no env var fallback)
       const apiKeys = await this.getApiKeysFromDatabase();
       
       if (!await this.validateApiKeys(apiKeys.gateIoKey, apiKeys.gateIoSecret)) {
-        console.log('Skipping orphan order cleanup - Valid Gate.io API keys not available');
+        console.log('Skipping cleanup - Valid Gate.io API keys not available');
         schedulerLogger.log('WARN', 'CLEANUP', 'Skipping cleanup - API keys not available');
         return;
       }
@@ -923,6 +921,7 @@ class SchedulerService {
         apiSecret: apiKeys.gateIoSecret
       };
       
+      // 1. Run regular orphan order cleanup
       schedulerLogger.apiCall('/cleanup-orphaned-orders', 'POST', {
         settle: cleanupInput.settle
       });
@@ -943,9 +942,169 @@ class SchedulerService {
         console.warn('Some orders failed to cancel:', result.cancellation_failures);
       }
       
+      // 2. Run position safety check
+      await this.performPositionSafetyCheck(apiKeys.gateIoKey, apiKeys.gateIoSecret);
+      
     } catch (error) {
-      console.error('Error during orphan order cleanup:', error);
-      schedulerLogger.log('ERROR', 'CLEANUP', 'Orphan order cleanup failed', {}, error);
+      console.error('Error during cleanup and safety check:', error);
+      schedulerLogger.log('ERROR', 'CLEANUP', 'Cleanup and safety check failed', {}, error);
+    }
+  }
+
+  /**
+   * Check position safety - ensure each open position has exactly 2 conditional orders (TP/SL)
+   * If not, close the position to be safe
+   */
+  private async performPositionSafetyCheck(apiKey: string, apiSecret: string): Promise<void> {
+    try {
+      console.log('Starting position safety check...');
+      schedulerLogger.log('INFO', 'CLEANUP', 'Starting position safety check');
+      
+      // Check both USDT and BTC markets
+      const markets = ['usdt', 'btc'] as const;
+      let totalPositions = 0;
+      let totalUnsafePositions = 0;
+      let totalClosedPositions = 0;
+      
+      for (const settle of markets) {
+        try {
+          console.log(`Checking ${settle.toUpperCase()} positions...`);
+          
+          // Fetch open positions
+          const positions = await listPositions(settle, apiKey, apiSecret);
+          const openPositions = positions.filter((pos: any) => parseFloat(pos.size) !== 0);
+          
+          if (openPositions.length === 0) {
+            console.log(`No open ${settle.toUpperCase()} positions found`);
+            continue;
+          }
+          
+          console.log(`Found ${openPositions.length} open ${settle.toUpperCase()} positions`);
+          totalPositions += openPositions.length;
+          
+          // Fetch open conditional orders
+          const conditionalOrders = await listPriceTriggeredOrders(settle, 'open', apiKey, apiSecret);
+          
+          console.log(`Found ${conditionalOrders.length} open ${settle.toUpperCase()} conditional orders`);
+          
+          // Group conditional orders by contract
+          const ordersByContract: { [contract: string]: any[] } = {};
+          conditionalOrders.forEach((order: any) => {
+            const contract = order.initial?.contract?.trim();
+            if (contract) {
+              if (!ordersByContract[contract]) {
+                ordersByContract[contract] = [];
+              }
+              ordersByContract[contract].push(order);
+            }
+          });
+          
+          // Check each position for safety
+          const unsafePositions = [];
+          
+          for (const position of openPositions) {
+            const contract = position.contract;
+            const orders = ordersByContract[contract] || [];
+            
+            console.log(`Checking ${contract}: position size=${position.size}, conditional orders=${orders.length}`);
+            
+            if (orders.length !== 2) {
+              console.log(`⚠️  UNSAFE POSITION: ${contract} has ${orders.length}/2 conditional orders`);
+              unsafePositions.push({
+                contract,
+                position,
+                orderCount: orders.length,
+                settle
+              });
+            } else {
+              console.log(`✅ Safe: ${contract} has proper TP/SL orders`);
+            }
+          }
+          
+          totalUnsafePositions += unsafePositions.length;
+          
+          // Close unsafe positions
+          if (unsafePositions.length > 0) {
+            console.log(`\n🚨 Found ${unsafePositions.length} UNSAFE ${settle.toUpperCase()} positions! Closing them for safety...`);
+            schedulerLogger.log('WARN', 'CLEANUP', `Found ${unsafePositions.length} unsafe ${settle} positions`, {
+              unsafePositions: unsafePositions.map(p => ({
+                contract: p.contract,
+                size: p.position.size,
+                orderCount: p.orderCount
+              }))
+            });
+            
+            for (const unsafe of unsafePositions) {
+              try {
+                const size = Math.abs(parseFloat(unsafe.position.size));
+                const isLong = parseFloat(unsafe.position.size) > 0;
+                
+                console.log(`Closing ${unsafe.contract}: size=${size}, isLong=${isLong}`);
+                schedulerLogger.log('INFO', 'CLEANUP', `Closing unsafe position ${unsafe.contract}`, {
+                  contract: unsafe.contract,
+                  size: unsafe.position.size,
+                  orderCount: unsafe.orderCount,
+                  settle: unsafe.settle
+                });
+                
+                const closeResult = await closePosition(
+                  unsafe.settle,
+                  unsafe.contract,
+                  size.toString(),
+                  isLong,
+                  apiKey,
+                  apiSecret
+                );
+                
+                console.log(`✅ Successfully closed ${unsafe.contract}:`, closeResult);
+                totalClosedPositions++;
+                
+                schedulerLogger.log('INFO', 'CLEANUP', `Successfully closed unsafe position ${unsafe.contract}`, {
+                  result: closeResult
+                });
+                
+              } catch (closeError: any) {
+                console.error(`❌ Failed to close ${unsafe.contract}:`, closeError.message);
+                schedulerLogger.log('ERROR', 'CLEANUP', `Failed to close unsafe position ${unsafe.contract}`, {
+                  error: closeError.message
+                });
+              }
+            }
+          } else {
+            console.log(`✅ All ${settle.toUpperCase()} positions are safe`);
+          }
+          
+        } catch (marketError: any) {
+          console.error(`Error checking ${settle} positions:`, marketError.message);
+          schedulerLogger.log('ERROR', 'CLEANUP', `Error checking ${settle} positions`, {
+            error: marketError.message
+          });
+        }
+      }
+      
+      // Summary
+      console.log(`\n=== Position Safety Check Summary ===`);
+      console.log(`Total positions checked: ${totalPositions}`);
+      console.log(`Unsafe positions found: ${totalUnsafePositions}`);
+      console.log(`Positions closed: ${totalClosedPositions}`);
+      
+      if (totalUnsafePositions === 0) {
+        console.log(`✅ All positions are safe!`);
+      } else if (totalClosedPositions === totalUnsafePositions) {
+        console.log(`✅ All unsafe positions were successfully closed!`);
+      } else {
+        console.log(`⚠️  Some positions could not be closed - check logs for details`);
+      }
+      
+      schedulerLogger.log('INFO', 'CLEANUP', 'Position safety check completed', {
+        totalPositions,
+        unsafePositions: totalUnsafePositions,
+        closedPositions: totalClosedPositions
+      });
+      
+    } catch (error: any) {
+      console.error('Error during position safety check:', error);
+      schedulerLogger.log('ERROR', 'CLEANUP', 'Position safety check failed', {}, error);
     }
   }
 
