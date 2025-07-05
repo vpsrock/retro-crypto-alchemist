@@ -39,7 +39,9 @@ class AutoServiceManager {
             // 3. Initialize and start monitoring service
             console.log('[SERVICE-MANAGER] Starting dynamic position monitor...');
             this.services.monitor = getDynamicPositionMonitor();
+            console.log('[SERVICE-MANAGER] 🔧 Got monitor instance, calling startMonitoring()...');
             this.services.monitor.startMonitoring();
+            console.log('[SERVICE-MANAGER] ✅ Monitor startMonitoring() call completed');
 
             // 4. Initialize and start time-based management
             console.log('[SERVICE-MANAGER] Starting time-based position manager...');

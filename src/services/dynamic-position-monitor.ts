@@ -68,38 +68,54 @@ export class DynamicPositionMonitor {
      * Start the monitoring service
      */
     public startMonitoring(): void {
-        if (this.isRunning) {
-            console.log('[MONITOR] Already running');
-            return;
-        }
+        try {
+            console.log(`[MONITOR] 🔧 startMonitoring() called`);
+            
+            if (this.isRunning) {
+                console.log('[MONITOR] Already running');
+                return;
+            }
 
-        if (!this.config.enabled) {
-            console.log('[MONITOR] Monitoring disabled in config');
-            return;
-        }
+            if (!this.config.enabled) {
+                console.log('[MONITOR] Monitoring disabled in config');
+                return;
+            }
 
-        console.log(`[MONITOR] 🚀 STARTING dynamic position monitoring (${this.config.checkInterval / 1000}s interval)`);
-        
-        this.isRunning = true;
-        
-        // Update monitoring state first
-        this.updateMonitoringState(true);
-        
-        // Immediate check with error handling
-        console.log('[MONITOR] 🔥 Triggering immediate monitoring cycle...');
-        this.performMonitoringCycle().catch(error => {
-            console.error('[MONITOR] ❌ Initial monitoring cycle failed:', error);
-        });
-        
-        // Schedule regular monitoring
-        console.log('[MONITOR] 📅 Scheduling monitoring cycles...');
-        this.monitoringInterval = setInterval(() => {
+            console.log(`[MONITOR] 🚀 STARTING dynamic position monitoring (${this.config.checkInterval / 1000}s interval)`);
+            
+            this.isRunning = true;
+            
+            // Update monitoring state first with error handling
+            console.log('[MONITOR] 🔧 Updating monitoring state...');
+            try {
+                this.updateMonitoringState(true);
+                console.log('[MONITOR] ✅ Monitoring state updated successfully');
+            } catch (stateError) {
+                console.error('[MONITOR] ❌ Failed to update monitoring state:', stateError);
+                // Continue anyway - don't let this stop monitoring
+            }
+            
+            // Immediate check with error handling
+            console.log('[MONITOR] 🔥 Triggering immediate monitoring cycle...');
             this.performMonitoringCycle().catch(error => {
-                console.error('[MONITOR] ❌ Scheduled monitoring cycle failed:', error);
+                console.error('[MONITOR] ❌ Initial monitoring cycle failed:', error);
             });
-        }, this.config.checkInterval);
+            
+            // Schedule regular monitoring
+            console.log('[MONITOR] 📅 Scheduling monitoring cycles...');
+            this.monitoringInterval = setInterval(() => {
+                this.performMonitoringCycle().catch(error => {
+                    console.error('[MONITOR] ❌ Scheduled monitoring cycle failed:', error);
+                });
+            }, this.config.checkInterval);
 
-        console.log('[MONITOR] ✅ Dynamic position monitoring started successfully');
+            console.log('[MONITOR] ✅ Dynamic position monitoring started successfully');
+            
+        } catch (error) {
+            console.error('[MONITOR] 🚨 CRITICAL ERROR in startMonitoring():', error);
+            this.isRunning = false;
+            throw error;
+        }
     }
 
     /**
@@ -734,15 +750,20 @@ export class DynamicPositionMonitor {
     }
 
     private updateMonitoringState(isActive: boolean): void {
-        this.db.prepare(`
-            INSERT OR REPLACE INTO monitoring_state 
-            (id, is_active, last_check, settings)
-            VALUES ('main', ?, ?, ?)
-        `).run(
-            isActive ? 1 : 0,
-            new Date().toISOString(),
-            JSON.stringify(this.config)
-        );
+        try {
+            this.db.prepare(`
+                INSERT OR REPLACE INTO monitoring_state 
+                (id, is_active, last_check, settings)
+                VALUES ('main', ?, ?, ?)
+            `).run(
+                isActive ? 1 : 0,
+                new Date().toISOString(),
+                JSON.stringify(this.config)
+            );
+        } catch (error) {
+            console.error('[MONITOR] Failed to update monitoring state in database:', error);
+            // Don't throw - allow monitoring to continue even if state update fails
+        }
     }
 
     /**
