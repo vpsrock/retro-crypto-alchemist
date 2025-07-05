@@ -78,19 +78,28 @@ export class DynamicPositionMonitor {
             return;
         }
 
-        this.isRunning = true;
-        console.log(`[MONITOR] Starting dynamic position monitoring (${this.config.checkInterval / 1000}s interval)`);
+        console.log(`[MONITOR] 🚀 STARTING dynamic position monitoring (${this.config.checkInterval / 1000}s interval)`);
         
-        // Immediate check
-        this.performMonitoringCycle();
+        this.isRunning = true;
+        
+        // Update monitoring state first
+        this.updateMonitoringState(true);
+        
+        // Immediate check with error handling
+        console.log('[MONITOR] 🔥 Triggering immediate monitoring cycle...');
+        this.performMonitoringCycle().catch(error => {
+            console.error('[MONITOR] ❌ Initial monitoring cycle failed:', error);
+        });
         
         // Schedule regular monitoring
+        console.log('[MONITOR] 📅 Scheduling monitoring cycles...');
         this.monitoringInterval = setInterval(() => {
-            this.performMonitoringCycle();
+            this.performMonitoringCycle().catch(error => {
+                console.error('[MONITOR] ❌ Scheduled monitoring cycle failed:', error);
+            });
         }, this.config.checkInterval);
 
-        // Update monitoring state
-        this.updateMonitoringState(true);
+        console.log('[MONITOR] ✅ Dynamic position monitoring started successfully');
     }
 
     /**
@@ -113,37 +122,65 @@ export class DynamicPositionMonitor {
         const startTime = Date.now();
         
         try {
-            console.log('[MONITOR] Starting monitoring cycle...');
+            console.log('[MONITOR] 🔄 Starting monitoring cycle...');
             
             // Get all active positions from database
             const activePositions = this.getActivePositions();
-            console.log(`[MONITOR] Found ${activePositions.length} active positions in database`);
+            console.log(`[MONITOR] 📊 Found ${activePositions.length} active positions in database`);
+            
+            if (activePositions.length === 0) {
+                console.log('[MONITOR] 💤 No active positions to monitor');
+                const duration = Date.now() - startTime;
+                console.log(`[MONITOR] ✅ Cycle completed in ${duration}ms (no positions)`);
+                this.lastSuccessfulCycleTimestamp = new Date().toISOString();
+                return;
+            }
 
             // First, reconcile positions with exchange to clean up stale data
+            console.log('[MONITOR] 🔍 Starting position reconciliation...');
             await this.reconcilePositions(activePositions);
 
             // Get updated active positions after reconciliation
             const reconciledPositions = this.getActivePositions();
-            console.log(`[MONITOR] After reconciliation: ${reconciledPositions.length} truly active positions`);
+            console.log(`[MONITOR] 🧹 After reconciliation: ${reconciledPositions.length} truly active positions`);
+
+            if (reconciledPositions.length === 0) {
+                console.log('[MONITOR] 💤 No positions remain after reconciliation');
+                const duration = Date.now() - startTime;
+                console.log(`[MONITOR] ✅ Cycle completed in ${duration}ms (all reconciled)`);
+                this.lastSuccessfulCycleTimestamp = new Date().toISOString();
+                return;
+            }
 
             // Group by API credentials to batch requests
             const positionGroups = this.groupPositionsByCredentials(reconciledPositions);
+            console.log(`[MONITOR] 👥 Grouped into ${positionGroups.length} credential groups`);
             
             for (const group of positionGroups) {
+                console.log(`[MONITOR] 🔧 Processing group with ${group.positions.length} positions...`);
                 await this.monitorPositionGroup(group);
             }
 
             const duration = Date.now() - startTime;
-            console.log(`[MONITOR] Cycle completed in ${duration}ms`);
+            console.log(`[MONITOR] ✅ Cycle completed successfully in ${duration}ms`);
 
             // Update health status on success
             this.lastSuccessfulCycleTimestamp = new Date().toISOString();
             
         } catch (error) {
-            console.error('[MONITOR] Error in monitoring cycle:', error);
+            const duration = Date.now() - startTime;
+            console.error(`[MONITOR] ❌ Error in monitoring cycle (${duration}ms):`, error);
+            
+            // Update health status with error
+            this.lastError = {
+                timestamp: new Date().toISOString(),
+                message: error instanceof Error ? error.message : String(error)
+            };
+            
             this.logExecution('system', 'monitoring_cycle_error', {
-                error: error instanceof Error ? error.message : String(error)
-            }, Date.now() - startTime, false, String(error));
+                error: error instanceof Error ? error.message : String(error),
+                duration
+            }, duration, false, String(error));
         }
     }
 
