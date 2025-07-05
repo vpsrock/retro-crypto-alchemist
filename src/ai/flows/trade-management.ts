@@ -15,7 +15,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { 
     placeFuturesOrder, 
-    placePriceTriggeredOrder, 
+    placeBatchPriceTriggeredOrders, 
     listPriceTriggeredOrders, 
     cancelPriceTriggeredOrder,
     getContract,
@@ -162,7 +162,7 @@ const placeTradeStrategyFlow = ai.defineFlow(
         rule: isLong ? 1 : 2, // >= for long TP, <= for short TP
       },
     };
-    const takeProfitOrderResult = await placePriceTriggeredOrder(settle, tpPayload, apiKey, apiSecret);
+    const takeProfitOrderResult = await placeBatchPriceTriggeredOrders(settle, tpPayload, apiKey, apiSecret);
 
     // 7. Place Stop-Loss Order
     const slPayload = {
@@ -180,7 +180,7 @@ const placeTradeStrategyFlow = ai.defineFlow(
         rule: isLong ? 2 : 1, // <= for long SL, >= for short SL
       },
     };
-    const stopLossOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
+    const stopLossOrderResult = await placeBatchPriceTriggeredOrders(settle, slPayload, apiKey, apiSecret);
 
     return {
         entry_order_id: entryOrderResult.id,
@@ -413,6 +413,7 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                 initial: {
                     contract: market,
                     price: "0",
+                    tif: "ioc", // Required for market price execution
                     reduce_only: true,
                     auto_size: isLong ? "close_long" : "close_short",
                 },
@@ -426,13 +427,12 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                 order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
             };
 
-            const tpOrderResult = await placePriceTriggeredOrder(settle, tpPayload, apiKey, apiSecret);
-
             // Single Stop-Loss Order
             const slPayload = {
                 initial: {
                     contract: market,
                     price: "0",
+                    tif: "ioc", // Required for market price execution
                     reduce_only: true,
                     auto_size: isLong ? "close_long" : "close_short",
                 },
@@ -446,13 +446,28 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                 order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
             };
 
-            const slOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
+            const conditionalOrders = [tpPayload, slPayload];
+            console.log(`[SINGLE-TP] Placing batch orders for TP and SL`);
+            const batchResult = await placeBatchPriceTriggeredOrders(settle, conditionalOrders, apiKey, apiSecret);
+
+            if (!Array.isArray(batchResult) || batchResult.length !== 2) {
+                console.error("[SINGLE-TP] Batch order placement failed or returned unexpected result:", batchResult);
+                throw new Error('Batch order placement for single strategy failed.');
+            }
+
+            const tpOrderResult = batchResult.find(o => o.trigger.price === formattedTakeProfit);
+            const slOrderResult = batchResult.find(o => o.trigger.price === formattedStopLoss);
+
+            if (!tpOrderResult || !slOrderResult) {
+                console.error("[SINGLE-TP] Could not find TP or SL order in batch response:", batchResult);
+                throw new Error('Failed to map batch order results for single strategy.');
+            }
 
             return {
                 entry_order_id: entryOrderResult.id,
                 take_profit_order_id: tpOrderResult.id,
                 stop_loss_order_id: slOrderResult.id,
-                message: `Single TP/SL strategy executed successfully for ${market}. Entry: ${entryOrderResult.id}, TP: ${tpOrderResult.id}, SL: ${slOrderResult.id}`,
+                message: `Single TP/SL strategy executed successfully via batch for ${market}. Entry: ${entryOrderResult.id}, TP: ${tpOrderResult.id}, SL: ${slOrderResult.id}`,
                 strategyType: 'single' as const
             };
         } else {
@@ -470,12 +485,13 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
             const formattedTp2 = priceLevels.tp2Price.toFixed(decimalPlaces);
             const formattedSl = priceLevels.slPrice.toFixed(decimalPlaces);
 
-            // 6. Place TP1 Order (50% position at 1.5%)
+            // TP1 Order Payload
             const tp1Payload = {
                 initial: {
                     contract: market,
                     size: isLong ? -orderSizes.tp1Size : orderSizes.tp1Size,
                     price: "0",
+                    tif: "ioc", // Required for market price execution
                     reduce_only: true
                 },
                 trigger: {
@@ -488,15 +504,13 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                 order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
             };
 
-            console.log(`[MULTI-TP] Placing TP1 order: ${orderSizes.tp1Size} contracts at ${formattedTp1}`);
-            const tp1OrderResult = await placePriceTriggeredOrder(settle, tp1Payload, apiKey, apiSecret);
-
-            // 7. Place TP2 Order (30% position at 2.5%)
+            // TP2 Order Payload
             const tp2Payload = {
                 initial: {
                     contract: market,
                     size: isLong ? -orderSizes.tp2Size : orderSizes.tp2Size,
                     price: "0",
+                    tif: "ioc", // Required for market price execution
                     reduce_only: true
                 },
                 trigger: {
@@ -509,10 +523,7 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                 order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
             };
 
-            console.log(`[MULTI-TP] Placing TP2 order: ${orderSizes.tp2Size} contracts at ${formattedTp2}`);
-            const tp2OrderResult = await placePriceTriggeredOrder(settle, tp2Payload, apiKey, apiSecret);
-
-            // 8. Place Initial Stop-Loss Order (for remaining ~20% + any not hit by TPs)
+            // SL Order Payload
             const slPayload = {
                 initial: {
                     contract: market,
@@ -531,15 +542,30 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                 order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
             };
 
-            console.log(`[MULTI-TP] Placing SL order: full remaining position at ${formattedSl}`);
-            const slOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
+            const conditionalOrders = [tp1Payload, tp2Payload, slPayload];
+            console.log(`[MULTI-TP] Placing batch of ${conditionalOrders.length} conditional orders for ${market}`);
+            const batchResult = await placeBatchPriceTriggeredOrders(settle, conditionalOrders, apiKey, apiSecret);
+
+            if (!Array.isArray(batchResult) || batchResult.length !== 3) {
+                console.error("[MULTI-TP] Batch order placement failed or returned unexpected result:", batchResult);
+                throw new Error('Batch order placement for multi-tp strategy failed.');
+            }
+
+            const tp1OrderResult = batchResult.find(o => o.trigger.price === formattedTp1);
+            const tp2OrderResult = batchResult.find(o => o.trigger.price === formattedTp2);
+            const slOrderResult = batchResult.find(o => o.trigger.price === formattedSl);
+
+            if (!tp1OrderResult || !tp2OrderResult || !slOrderResult) {
+                console.error("[MULTI-TP] Could not map all orders in batch response:", batchResult);
+                throw new Error('Failed to map batch order results for multi-tp strategy.');
+            }
 
             return {
                 entry_order_id: entryOrderResult.id,
                 tp1_order_id: tp1OrderResult.id,
                 tp2_order_id: tp2OrderResult.id,
                 stop_loss_order_id: slOrderResult.id,
-                message: `Multi-TP strategy executed successfully for ${market}. Entry: ${entryOrderResult.id}, TP1: ${tp1OrderResult.id} (${orderSizes.tp1Size} contracts), TP2: ${tp2OrderResult.id} (${orderSizes.tp2Size} contracts), SL: ${slOrderResult.id}`,
+                message: `Multi-TP strategy executed successfully via batch for ${market}. Entry: ${entryOrderResult.id}, TP1: ${tp1OrderResult.id}, TP2: ${tp2OrderResult.id}, SL: ${slOrderResult.id}`,
                 strategyType: 'multi-tp' as const,
                 orderSizes,
                 targetPrices: priceLevels

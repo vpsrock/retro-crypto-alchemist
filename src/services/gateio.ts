@@ -158,6 +158,16 @@ export async function placePriceTriggeredOrder(
     return makeRequest('POST', `/futures/${settle}/price_orders`, new URLSearchParams(), order, apiKey, apiSecret);
 }
 
+// For placing a batch of take-profit and stop-loss orders
+export async function placeBatchPriceTriggeredOrders(
+    settle: 'usdt' | 'btc',
+    orders: any[], 
+    apiKey: string,
+    apiSecret: string
+) {
+    return makeRequest('POST', `/futures/${settle}/price_orders`, new URLSearchParams(), orders, apiKey, apiSecret);
+}
+
 // For listing open TP/SL orders
 export async function listPriceTriggeredOrders(
     settle: 'usdt' | 'btc',
