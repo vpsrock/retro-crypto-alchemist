@@ -34,9 +34,16 @@ export async function POST(request: NextRequest) {
                 const status = serviceManager.getStatus();
                 return NextResponse.json({ success: true, status });
 
+            case 'get_health_status':
+                const monitor = getDynamicPositionMonitor();
+                const healthStatus = monitor.getHealthStatus();
+                return NextResponse.json(healthStatus, {
+                    status: healthStatus.lastError ? 503 : 200, // Service Unavailable if error
+                });
+
             default:
                 return NextResponse.json(
-                    { error: 'Unknown action. Available: restart_services, get_status' },
+                    { error: 'Unknown action. Available: restart_services, get_status, get_health_status' },
                     { status: 400 }
                 );
         }
@@ -47,19 +54,4 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
-}
-
-// New endpoint for detailed health status
-export async function POST(req: Request) {
-    if (req.method !== 'POST') {
-        return new Response('Method Not Allowed', { status: 405 });
-    }
-
-    const monitor = getDynamicPositionMonitor();
-    const healthStatus = monitor.getHealthStatus();
-
-    return new Response(JSON.stringify(healthStatus), {
-        headers: { 'Content-Type': 'application/json' },
-        status: healthStatus.lastError ? 503 : 200, // Service Unavailable if error
-    });
 }
