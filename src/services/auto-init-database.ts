@@ -9,13 +9,36 @@ export class AutoInitializingDatabase {
     public static getInstance(): Database.Database {
         if (!AutoInitializingDatabase.instance) {
             const dbPath = path.join(process.cwd(), 'trades.db');
-            AutoInitializingDatabase.instance = new Database(dbPath);
             
-            if (!AutoInitializingDatabase.initialized) {
-                AutoInitializingDatabase.initializeTables();
-                AutoInitializingDatabase.initialized = true;
+            try {
+                AutoInitializingDatabase.instance = new Database(dbPath);
+                
+                // Test connection immediately
+                AutoInitializingDatabase.instance.pragma('journal_mode = WAL');
+                
+                if (!AutoInitializingDatabase.initialized) {
+                    AutoInitializingDatabase.initializeTables();
+                    AutoInitializingDatabase.initialized = true;
+                }
+                
+                console.log('[AUTO-DB] ✅ Database connection established and verified');
+                
+            } catch (error) {
+                console.error('[AUTO-DB] ❌ Failed to initialize database:', error);
+                throw new Error(`Database initialization failed: ${error instanceof Error ? error.message : String(error)}`);
             }
         }
+        
+        // Verify connection is still alive
+        try {
+            AutoInitializingDatabase.instance.prepare('SELECT 1').get();
+        } catch (error) {
+            console.error('[AUTO-DB] ⚠️ Database connection lost, reinitializing...', error);
+            AutoInitializingDatabase.instance = null;
+            AutoInitializingDatabase.initialized = false;
+            return AutoInitializingDatabase.getInstance(); // Recursive call to reinitialize
+        }
+        
         return AutoInitializingDatabase.instance;
     }
 
@@ -169,15 +192,52 @@ export class AutoInitializingDatabase {
             
         } catch (error) {
             console.error('[AUTO-DB] ❌ Failed to initialize tables:', error);
-            throw error;
+            throw new Error(`Table initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    public static healthCheck(): boolean {
+        try {
+            const db = AutoInitializingDatabase.getInstance();
+            
+            // Test basic query
+            const testQuery = db.prepare('SELECT COUNT(*) as count FROM position_states');
+            const result = testQuery.get() as { count: number };
+            
+            console.log(`[AUTO-DB] ✅ Health check passed - ${result.count} positions in database`);
+            return true;
+            
+        } catch (error) {
+            console.error('[AUTO-DB] ❌ Health check failed:', error);
+            return false;
+        }
+    }
+
+    public static getConnectionStatus(): string {
+        try {
+            if (!AutoInitializingDatabase.instance) {
+                return 'disconnected';
+            }
+            
+            AutoInitializingDatabase.instance.prepare('SELECT 1').get();
+            return 'connected';
+            
+        } catch (error) {
+            return 'error';
         }
     }
 
     public static close(): void {
         if (AutoInitializingDatabase.instance) {
-            AutoInitializingDatabase.instance.close();
-            AutoInitializingDatabase.instance = null;
-            AutoInitializingDatabase.initialized = false;
+            try {
+                AutoInitializingDatabase.instance.close();
+                console.log('[AUTO-DB] Database connection closed gracefully');
+            } catch (error) {
+                console.error('[AUTO-DB] Error closing database:', error);
+            } finally {
+                AutoInitializingDatabase.instance = null;
+                AutoInitializingDatabase.initialized = false;
+            }
         }
     }
 }
@@ -185,4 +245,18 @@ export class AutoInitializingDatabase {
 // Convenience function for getting database instance
 export function getAutoInitDB(): Database.Database {
     return AutoInitializingDatabase.getInstance();
+}
+
+// Health check functions
+export function checkDatabaseHealth(): boolean {
+    return AutoInitializingDatabase.healthCheck();
+}
+
+export function getDatabaseConnectionStatus(): string {
+    return AutoInitializingDatabase.getConnectionStatus();
+}
+
+// Safe shutdown function
+export function closeDatabaseConnection(): void {
+    AutoInitializingDatabase.close();
 }
