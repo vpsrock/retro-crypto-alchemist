@@ -449,19 +449,39 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
             const conditionalOrders = [tpPayload, slPayload];
             console.log(`[SINGLE-TP] Placing TP and SL orders sequentially`);
             
-            const tpOrderResult = await placePriceTriggeredOrder(settle, tpPayload, apiKey, apiSecret);
-            console.log(`[SINGLE-TP] TP order placed successfully: ${tpOrderResult.id}`);
-            
-            const slOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
-            console.log(`[SINGLE-TP] SL order placed successfully: ${slOrderResult.id}`);
+            try {
+                const tpOrderResult = await placePriceTriggeredOrder(settle, tpPayload, apiKey, apiSecret);
+                console.log(`[SINGLE-TP] TP order placed successfully: ${tpOrderResult.id}`);
+                
+                const slOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
+                console.log(`[SINGLE-TP] SL order placed successfully: ${slOrderResult.id}`);
 
-            return {
-                entry_order_id: entryOrderResult.id,
-                take_profit_order_id: tpOrderResult.id,
-                stop_loss_order_id: slOrderResult.id,
-                message: `Single TP/SL strategy executed successfully via batch for ${market}. Entry: ${entryOrderResult.id}, TP: ${tpOrderResult.id}, SL: ${slOrderResult.id}`,
-                strategyType: 'single' as const
-            };
+                return {
+                    entry_order_id: entryOrderResult.id,
+                    take_profit_order_id: tpOrderResult.id,
+                    stop_loss_order_id: slOrderResult.id,
+                    message: `Single TP/SL strategy executed successfully for ${market}. Entry: ${entryOrderResult.id}, TP: ${tpOrderResult.id}, SL: ${slOrderResult.id}`,
+                    strategyType: 'single' as const
+                };
+                
+            } catch (conditionalOrderError: any) {
+                console.error(`[SINGLE-TP] Conditional order placement failed:`, conditionalOrderError);
+                
+                // Try to place at least a basic SL for protection
+                try {
+                    const emergencySlResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
+                    console.log(`[SINGLE-TP] Emergency SL placed: ${emergencySlResult.id}`);
+                    
+                    return {
+                        entry_order_id: entryOrderResult.id,
+                        stop_loss_order_id: emergencySlResult.id,
+                        message: `Single TP strategy partially failed, only SL placed for protection. Entry: ${entryOrderResult.id}, SL: ${emergencySlResult.id}`,
+                        strategyType: 'single' as const
+                    };
+                } catch (emergencyError: any) {
+                    throw new Error(`CRITICAL: Single TP/SL orders failed. Position ${market} is UNPROTECTED! Error: ${conditionalOrderError.message}`);
+                }
+            }
         } else {
             // Multi-TP strategy
             console.log(`[MULTI-TP] Using multi-TP strategy for ${market} with ${totalContracts} contracts`);
@@ -521,6 +541,7 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                     contract: market,
                     size: 0, // Will close any remaining position
                     price: "0",
+                    tif: "ioc", // Required for market price execution with auto_size
                     reduce_only: true,
                     auto_size: isLong ? "close_long" : "close_short"
                 },
@@ -580,7 +601,38 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                     }
                 }
                 
-                throw new Error(`Multi-TP conditional orders failed: ${conditionalOrderError.message || conditionalOrderError.toString()}. Rolled back ${placedOrders.length} orders.`);
+                // CRITICAL: Position protection fallback - place basic SL at minimum
+                console.error(`[MULTI-TP] CRITICAL: Position ${market} opened but conditional orders failed. Attempting emergency SL placement.`);
+                
+                try {
+                    // Emergency SL order using AI's stop loss
+                    const emergencySlPayload = {
+                        initial: {
+                            contract: market,
+                            price: "0",
+                            tif: "ioc",
+                            reduce_only: true,
+                            auto_size: isLong ? "close_long" : "close_short",
+                        },
+                        trigger: {
+                            strategy_type: 0,
+                            price_type: 0,
+                            price: formattedSl,
+                            rule: isLong ? 2 : 1,
+                            expiration: 86400
+                        },
+                        order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
+                    };
+                    
+                    const emergencySlResult = await placePriceTriggeredOrder(settle, emergencySlPayload, apiKey, apiSecret);
+                    console.log(`[MULTI-TP] Emergency SL placed successfully: ${emergencySlResult.id}`);
+                    
+                    throw new Error(`Multi-TP conditional orders failed: ${conditionalOrderError.message || conditionalOrderError.toString()}. Rolled back ${placedOrders.length} orders. Emergency SL placed: ${emergencySlResult.id}.`);
+                    
+                } catch (emergencySlError: any) {
+                    console.error(`[MULTI-TP] CRITICAL: Emergency SL placement also failed:`, emergencySlError);
+                    throw new Error(`CRITICAL: Multi-TP conditional orders failed AND emergency SL failed. Position ${market} is UNPROTECTED! Original error: ${conditionalOrderError.message}. Emergency SL error: ${emergencySlError.message}. Rolled back ${placedOrders.length} orders.`);
+                }
             }
         }
     }
