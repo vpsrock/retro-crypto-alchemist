@@ -481,6 +481,21 @@ class SchedulerService {
       schedulerLogger.analysisComplete(contractInfo.contract, analysisResult);
       console.log(`Analysis for ${contractInfo.contract}: confidence=${analysisResult.confidence_score}, action=${analysisResult.trade_call}`);
 
+      // Skip if AI recommends holding (regardless of confidence)
+      if (analysisResult.trade_call.toLowerCase() === 'hold') {
+        console.log(`Skipping ${contractInfo.contract} - AI recommends HOLD`);
+        schedulerLogger.tradeDecision(contractInfo.contract, analysisResult.confidence_score, context.threshold, 'SKIP');
+        return false;
+      }
+
+      // Skip if TP/SL values are missing or zero
+      if (!analysisResult.take_profit || !analysisResult.stop_loss || 
+          analysisResult.take_profit === 0 || analysisResult.stop_loss === 0) {
+        console.log(`Skipping ${contractInfo.contract} - Invalid TP/SL values (TP: ${analysisResult.take_profit}, SL: ${analysisResult.stop_loss})`);
+        schedulerLogger.tradeDecision(contractInfo.contract, analysisResult.confidence_score, context.threshold, 'SKIP');
+        return false;
+      }
+
       // Check if confidence meets threshold for auto-trading
       if (analysisResult.confidence_score >= context.threshold) {
         schedulerLogger.tradeDecision(contractInfo.contract, analysisResult.confidence_score, context.threshold, 'EXECUTE');
@@ -656,32 +671,12 @@ class SchedulerService {
         
         return true;
         
-      } catch (tradeError: any) {
-        console.error(`[MULTI-TP] Failed to execute trade for ${contractInfo.contract}:`, tradeError);
-        
-        // Log detailed error information
-        if (tradeError.message?.includes('Entry order') && tradeError.message?.includes('placed successfully')) {
-          console.error(`[MULTI-TP] CRITICAL: Entry order was placed but TP/SL orders failed for ${contractInfo.contract}`);
-          console.error(`[MULTI-TP] This means a position exists without protection! Manual intervention needed.`);
-          console.error(`[MULTI-TP] Error details:`, tradeError.message);
-          
-          // Update position status to indicate issue
-          await database.updatePositionStatus(positionId, 'failed');
-          
-          schedulerLogger.log('ERROR', 'TRADING', 'Entry order placed but TP/SL orders failed - MANUAL INTERVENTION NEEDED', {
-            contract: contractInfo.contract,
-            positionId,
-            errorMessage: tradeError.message,
-            severity: 'CRITICAL'
-          });
-        } else {
-          console.error(`[MULTI-TP] Complete trade failure for ${contractInfo.contract}:`, tradeError.message);
-          
-          // Update position status to failed
-          await database.updatePositionStatus(positionId, 'failed');
-        }
-        
+      } catch (tradeError) {
+        console.error(`Failed to execute trade for ${contractInfo.contract}:`, tradeError);
         schedulerLogger.tradeError(contractInfo.contract, tradeError, positionId);
+        
+        // Update position status to failed
+        await database.updatePositionStatus(positionId, 'failed');
         return false;
       }
 

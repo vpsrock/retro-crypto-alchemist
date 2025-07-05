@@ -413,7 +413,6 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                 initial: {
                     contract: market,
                     price: "0",
-                    tif: "ioc",
                     reduce_only: true,
                     auto_size: isLong ? "close_long" : "close_short",
                 },
@@ -434,7 +433,6 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                 initial: {
                     contract: market,
                     price: "0",
-                    tif: "ioc",
                     reduce_only: true,
                     auto_size: isLong ? "close_long" : "close_short",
                 },
@@ -478,8 +476,7 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                     contract: market,
                     size: isLong ? -orderSizes.tp1Size : orderSizes.tp1Size,
                     price: "0",
-                    reduce_only: true,
-                    tif: "ioc"
+                    reduce_only: true
                 },
                 trigger: {
                     strategy_type: 0,
@@ -500,8 +497,7 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                     contract: market,
                     size: isLong ? -orderSizes.tp2Size : orderSizes.tp2Size,
                     price: "0",
-                    reduce_only: true,
-                    tif: "ioc"
+                    reduce_only: true
                 },
                 trigger: {
                     strategy_type: 0,
