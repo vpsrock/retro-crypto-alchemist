@@ -422,7 +422,7 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                     price_type: 0,
                     price: formattedTakeProfit,
                     rule: isLong ? 1 : 2,
-                    expiration: 4 * 3600
+                    expiration: 86400 // 1 day (minimum allowed by Gate.io API)
                 },
                 order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
             };
@@ -443,7 +443,7 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                     price_type: 0,
                     price: formattedStopLoss,
                     rule: isLong ? 2 : 1,
-                    expiration: 4 * 3600
+                    expiration: 86400 // 1 day (minimum allowed by Gate.io API)
                 },
                 order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
             };
@@ -486,7 +486,7 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                     price_type: 0,
                     price: formattedTp1,
                     rule: isLong ? 1 : 2,
-                    expiration: 4 * 3600
+                    expiration: 86400 // 1 day (minimum allowed by Gate.io API)
                 },
                 order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
             };
@@ -508,7 +508,7 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                     price_type: 0,
                     price: formattedTp2,
                     rule: isLong ? 1 : 2,
-                    expiration: 4 * 3600
+                    expiration: 86400 // 1 day (minimum allowed by Gate.io API)
                 },
                 order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
             };
@@ -530,7 +530,7 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                     price_type: 0,
                     price: formattedSl,
                     rule: isLong ? 2 : 1,
-                    expiration: 4 * 3600
+                    expiration: 86400 // 1 day (minimum allowed by Gate.io API)
                 },
                 order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
             };
@@ -551,3 +551,11 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
         }
     }
 );
+
+/**
+ * IMPORTANT: Gate.io API expiration requirements for triggered orders:
+ * - Must be integer multiple of 86400 (1 day in seconds)  
+ * - Must be in range [86400, 86400*30] (1-30 days)
+ * - 86400 = 1 day (minimum allowed)
+ * - We use 1 day expiration for all TP/SL orders
+ */

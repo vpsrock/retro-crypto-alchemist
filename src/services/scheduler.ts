@@ -656,12 +656,32 @@ class SchedulerService {
         
         return true;
         
-      } catch (tradeError) {
-        console.error(`Failed to execute trade for ${contractInfo.contract}:`, tradeError);
-        schedulerLogger.tradeError(contractInfo.contract, tradeError, positionId);
+      } catch (tradeError: any) {
+        console.error(`[MULTI-TP] Failed to execute trade for ${contractInfo.contract}:`, tradeError);
         
-        // Update position status to failed
-        await database.updatePositionStatus(positionId, 'failed');
+        // Log detailed error information
+        if (tradeError.message?.includes('Entry order') && tradeError.message?.includes('placed successfully')) {
+          console.error(`[MULTI-TP] CRITICAL: Entry order was placed but TP/SL orders failed for ${contractInfo.contract}`);
+          console.error(`[MULTI-TP] This means a position exists without protection! Manual intervention needed.`);
+          console.error(`[MULTI-TP] Error details:`, tradeError.message);
+          
+          // Update position status to indicate issue
+          await database.updatePositionStatus(positionId, 'failed');
+          
+          schedulerLogger.log('ERROR', 'TRADING', 'Entry order placed but TP/SL orders failed - MANUAL INTERVENTION NEEDED', {
+            contract: contractInfo.contract,
+            positionId,
+            errorMessage: tradeError.message,
+            severity: 'CRITICAL'
+          });
+        } else {
+          console.error(`[MULTI-TP] Complete trade failure for ${contractInfo.contract}:`, tradeError.message);
+          
+          // Update position status to failed
+          await database.updatePositionStatus(positionId, 'failed');
+        }
+        
+        schedulerLogger.tradeError(contractInfo.contract, tradeError, positionId);
         return false;
       }
 
