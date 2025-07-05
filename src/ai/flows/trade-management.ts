@@ -22,6 +22,8 @@ import {
     updateLeverage,
     listPositions,
 } from '@/services/gateio';
+import { getDynamicPositionDB } from '@/services/dynamic-position-db';
+import type { PositionState } from '@/lib/dynamic-position-schemas';
 import { 
     PlaceTradeStrategyInputSchema, 
     PlaceTradeStrategyOutputSchema, 
@@ -577,6 +579,41 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                 const slOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
                 placedOrders.push(slOrderResult);
                 
+                // Save position state to database for dynamic management
+                const db = getDynamicPositionDB();
+                const positionId = `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                
+                const positionState: PositionState = {
+                    id: positionId,
+                    contract: market,
+                    direction: trade_call as 'long' | 'short',
+                    size: totalContracts,
+                    entryPrice: lastPrice,
+                    entryOrderId: entryOrderResult.id.toString(),
+                    strategyType: 'multi-tp',
+                    tp1Size: orderSizes.tp1Size,
+                    tp2Size: orderSizes.tp2Size,
+                    runnerSize: orderSizes.runnerSize,
+                    tp1OrderId: tp1OrderResult.id.toString(),
+                    tp2OrderId: tp2OrderResult.id.toString(),
+                    currentSlOrderId: slOrderResult.id.toString(),
+                    phase: 'initial',
+                    remainingSize: totalContracts,
+                    realizedPnl: 0,
+                    originalSlPrice: priceLevels.slPrice,
+                    currentSlPrice: priceLevels.slPrice,
+                    tp1Price: priceLevels.tp1Price,
+                    tp2Price: priceLevels.tp2Price,
+                    createdAt: new Date().toISOString(),
+                    lastUpdated: new Date().toISOString(),
+                    apiKey,
+                    apiSecret,
+                    settle
+                };
+                
+                db.savePositionState(positionState);
+                console.log(`[MULTI-TP] Position state saved to database: ${positionId}`);
+                
                 return {
                     entry_order_id: entryOrderResult.id,
                     tp1_order_id: tp1OrderResult.id,
@@ -585,7 +622,8 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                     message: `Multi-TP strategy executed successfully for ${market}. Entry: ${entryOrderResult.id}, TP1: ${tp1OrderResult.id}, TP2: ${tp2OrderResult.id}, SL: ${slOrderResult.id}`,
                     strategyType: 'multi-tp' as const,
                     orderSizes,
-                    targetPrices: priceLevels
+                    targetPrices: priceLevels,
+                    positionId // Add position ID to response
                 };
                 
             } catch (conditionalOrderError: any) {

@@ -358,5 +358,6 @@ export const PlaceTradeStrategyMultiTpOutputSchema = z.object({
   strategyType: z.enum(['single', 'multi-tp']).describe('Strategy type used.'),
   orderSizes: MultiTpOrderSizesSchema.optional().describe('Breakdown of order sizes.'),
   targetPrices: MultiTpPriceLevelsSchema.optional().describe('Target price levels.'),
+  positionId: z.string().optional().describe('Position ID for dynamic management tracking.'),
 });
 export type PlaceTradeStrategyMultiTpOutput = z.infer<typeof PlaceTradeStrategyMultiTpOutputSchema>;
