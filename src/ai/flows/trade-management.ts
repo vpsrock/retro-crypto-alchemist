@@ -32,6 +32,10 @@ import {
     ListOpenPositionsInputSchema,
     ListOpenPositionsOutputSchema,
     CleanupOrphanedOrdersOutputSchema,
+    PlaceTradeStrategyMultiTpInputSchema,
+    PlaceTradeStrategyMultiTpOutputSchema,
+    MultiTpOrderSizesSchema,
+    MultiTpPriceLevelsSchema,
 } from '@/lib/schemas';
 
 import type { 
@@ -44,6 +48,10 @@ import type {
     ListOpenPositionsInput,
     ListOpenPositionsOutput,
     CleanupOrphanedOrdersOutput,
+    PlaceTradeStrategyMultiTpInput,
+    PlaceTradeStrategyMultiTpOutput,
+    MultiTpOrderSizes,
+    MultiTpPriceLevels,
 } from '@/lib/schemas';
 
 export type { PlaceTradeStrategyInput, PlaceTradeStrategyOutput, ListOpenOrdersInput, ListOpenOrdersOutput, CancelOrderInput, CancelOrderOutput, ListOpenPositionsInput, ListOpenPositionsOutput, CleanupOrphanedOrdersOutput };
@@ -280,5 +288,266 @@ const cleanupOrphanedOrdersFlow = ai.defineFlow(
             open_order_contracts: openOrderContractsForLog as string[],
             orphaned_contracts_found: orphanedContractsFoundForLog as string[],
         };
+    }
+);
+
+// ====== MULTI-TP ENHANCED TRADE EXECUTION SYSTEM ======
+
+/**
+ * Calculate order sizes for multi-TP strategy
+ * 50% for TP1, 30% for TP2, ~20% for runner
+ */
+function calculateMultiTpSizes(totalContracts: number) {
+    const tp1Size = Math.floor(totalContracts * 0.5);  // 50%
+    const tp2Size = Math.floor(totalContracts * 0.3);  // 30%
+    const runnerSize = totalContracts - tp1Size - tp2Size; // Remaining ~20%
+    
+    return {
+        totalContracts,
+        tp1Size,
+        tp2Size, 
+        runnerSize
+    };
+}
+
+/**
+ * Calculate price levels for multi-TP strategy
+ * TP1: 1.5%, TP2: 2.5%, SL: AI's recommendation
+ */
+function calculateMultiTpPrices(entryPrice: number, direction: 'long' | 'short', aiStopLoss: number) {
+    const multiplier = direction === 'long' ? 1 : -1;
+    
+    return {
+        entryPrice,
+        tp1Price: entryPrice * (1 + (0.015 * multiplier)), // 1.5%
+        tp2Price: entryPrice * (1 + (0.025 * multiplier)), // 2.5%
+        slPrice: aiStopLoss // Use AI's recommendation for initial SL
+    };
+}
+
+/**
+ * Enhanced trade execution with multi-TP strategy
+ * Backward compatible - can fall back to single TP if multi-TP fails
+ */
+export const placeTradeStrategyMultiTp = ai.defineFlow(
+    {
+        name: 'placeTradeStrategyMultiTp',
+        inputSchema: PlaceTradeStrategyMultiTpInputSchema,
+        outputSchema: PlaceTradeStrategyMultiTpOutputSchema,
+    },
+    async (input) => {
+        const { tradeDetails, tradeSizeUsd, leverage, apiKey, apiSecret, settle, strategyType } = input;
+        const { market, take_profit, stop_loss, trade_call } = tradeDetails;
+
+        console.log(`[MULTI-TP] Starting ${strategyType} trade execution for ${market}`);
+
+        // Check for existing positions before placing a new one
+        const existingPositions = await listPositions(settle, apiKey, apiSecret);
+        const openPosition = existingPositions.find((p: any) => p.contract === market && p.size !== 0);
+        if (openPosition) {
+            throw new Error(`An open position already exists for ${market}. Cannot place a new trade.`);
+        }
+        
+        // 1. Fetch contract specification to get multiplier and tick size
+        const contractSpec = await getContract(settle, market);
+        if (!contractSpec) {
+            throw new Error(`Could not fetch contract specifications for ${market}. The API returned a null or empty response.`);
+        }
+
+        const lastPrice = parseFloat(contractSpec.last_price);
+        const multiplier = parseFloat(contractSpec.quanto_multiplier);
+        const tickSize = contractSpec.tick_size || contractSpec.order_price_round;
+
+        if (!lastPrice || !multiplier) {
+            const receivedData = JSON.stringify(contractSpec, null, 2);
+            throw new Error(`Could not fetch last_price or quanto_multiplier for ${market}. Received data:\n${receivedData}`);
+        }
+        if (!tickSize) {
+            const receivedData = JSON.stringify(contractSpec, null, 2);
+            throw new Error(`Could not fetch 'tick_size' or 'order_price_round' for ${market}. The contract specification was received, but both fields are missing. Received data:\n${receivedData}`);
+        }
+
+        // 2. Calculate order size in contracts based on target USD value
+        const totalContracts = Math.max(1, Math.floor(tradeSizeUsd / (lastPrice * multiplier)));
+        
+        // 3. Set Leverage for the contract
+        await updateLeverage(settle, market, String(leverage), apiKey, apiSecret);
+        
+        // 4. Calculate price levels and order sizes based on strategy type
+        const decimalPlaces = tickSize.includes('.') ? tickSize.split('.')[1].length : 0;
+        if (!take_profit || !stop_loss) {
+            throw new Error(`Invalid trade details: take_profit (${take_profit}) or stop_loss (${stop_loss}) is missing or zero.`);
+        }
+
+        const isLong = trade_call === 'long';
+        const entryOrderSize = isLong ? totalContracts : -totalContracts;
+
+        // Decide strategy type (fallback to single if multi-TP not suitable)
+        let actualStrategyType = strategyType;
+        if (strategyType === 'multi-tp' && totalContracts < 5) {
+            console.log(`[MULTI-TP] Position too small (${totalContracts} contracts), falling back to single TP`);
+            actualStrategyType = 'single';
+        }
+
+        // 5. Place Initial Market Order to Enter Position
+        const marketOrderPayload = {
+            contract: market,
+            size: entryOrderSize,
+            price: "0", // Market order
+            tif: "ioc", // Immediate or Cancel
+            text: "t-retro-crypto-alchemist-v2",
+        };
+        
+        console.log(`[MULTI-TP] Placing entry order for ${market}: ${entryOrderSize} contracts`);
+        const entryOrderResult = await placeFuturesOrder(settle, marketOrderPayload, apiKey, apiSecret);
+
+        if (actualStrategyType === 'single') {
+            // Fall back to original single TP/SL logic
+            console.log(`[MULTI-TP] Using single TP strategy for ${market}`);
+            
+            const formattedTakeProfit = take_profit.toFixed(decimalPlaces);
+            const formattedStopLoss = stop_loss.toFixed(decimalPlaces);
+
+            // Single Take-Profit Order
+            const tpPayload = {
+                initial: {
+                    contract: market,
+                    price: "0",
+                    tif: "ioc",
+                    reduce_only: true,
+                    auto_size: isLong ? "close_long" : "close_short",
+                },
+                trigger: {
+                    strategy_type: 0,
+                    price_type: 0,
+                    price: formattedTakeProfit,
+                    rule: isLong ? 1 : 2,
+                    expiration: 4 * 3600
+                },
+                order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
+            };
+
+            const tpOrderResult = await placePriceTriggeredOrder(settle, tpPayload, apiKey, apiSecret);
+
+            // Single Stop-Loss Order
+            const slPayload = {
+                initial: {
+                    contract: market,
+                    price: "0",
+                    tif: "ioc",
+                    reduce_only: true,
+                    auto_size: isLong ? "close_long" : "close_short",
+                },
+                trigger: {
+                    strategy_type: 0,
+                    price_type: 0,
+                    price: formattedStopLoss,
+                    rule: isLong ? 2 : 1,
+                    expiration: 4 * 3600
+                },
+                order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
+            };
+
+            const slOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
+
+            return {
+                entry_order_id: entryOrderResult.id,
+                take_profit_order_id: tpOrderResult.id,
+                stop_loss_order_id: slOrderResult.id,
+                message: `Single TP/SL strategy executed successfully for ${market}. Entry: ${entryOrderResult.id}, TP: ${tpOrderResult.id}, SL: ${slOrderResult.id}`,
+                strategyType: 'single' as const
+            };
+        } else {
+            // Multi-TP strategy
+            console.log(`[MULTI-TP] Using multi-TP strategy for ${market} with ${totalContracts} contracts`);
+            
+            const orderSizes = calculateMultiTpSizes(totalContracts);
+            const priceLevels = calculateMultiTpPrices(lastPrice, trade_call, stop_loss);
+            
+            console.log(`[MULTI-TP] Order sizes for ${market}:`, orderSizes);
+            console.log(`[MULTI-TP] Price levels for ${market}:`, priceLevels);
+
+            // Format prices according to contract tick size
+            const formattedTp1 = priceLevels.tp1Price.toFixed(decimalPlaces);
+            const formattedTp2 = priceLevels.tp2Price.toFixed(decimalPlaces);
+            const formattedSl = priceLevels.slPrice.toFixed(decimalPlaces);
+
+            // 6. Place TP1 Order (50% position at 1.5%)
+            const tp1Payload = {
+                initial: {
+                    contract: market,
+                    size: isLong ? -orderSizes.tp1Size : orderSizes.tp1Size,
+                    price: "0",
+                    reduce_only: true,
+                    tif: "ioc"
+                },
+                trigger: {
+                    strategy_type: 0,
+                    price_type: 0,
+                    price: formattedTp1,
+                    rule: isLong ? 1 : 2,
+                    expiration: 4 * 3600
+                },
+                order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
+            };
+
+            console.log(`[MULTI-TP] Placing TP1 order: ${orderSizes.tp1Size} contracts at ${formattedTp1}`);
+            const tp1OrderResult = await placePriceTriggeredOrder(settle, tp1Payload, apiKey, apiSecret);
+
+            // 7. Place TP2 Order (30% position at 2.5%)
+            const tp2Payload = {
+                initial: {
+                    contract: market,
+                    size: isLong ? -orderSizes.tp2Size : orderSizes.tp2Size,
+                    price: "0",
+                    reduce_only: true,
+                    tif: "ioc"
+                },
+                trigger: {
+                    strategy_type: 0,
+                    price_type: 0,
+                    price: formattedTp2,
+                    rule: isLong ? 1 : 2,
+                    expiration: 4 * 3600
+                },
+                order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
+            };
+
+            console.log(`[MULTI-TP] Placing TP2 order: ${orderSizes.tp2Size} contracts at ${formattedTp2}`);
+            const tp2OrderResult = await placePriceTriggeredOrder(settle, tp2Payload, apiKey, apiSecret);
+
+            // 8. Place Initial Stop-Loss Order (for remaining ~20% + any not hit by TPs)
+            const slPayload = {
+                initial: {
+                    contract: market,
+                    size: 0, // Will close any remaining position
+                    price: "0",
+                    reduce_only: true,
+                    auto_size: isLong ? "close_long" : "close_short"
+                },
+                trigger: {
+                    strategy_type: 0,
+                    price_type: 0,
+                    price: formattedSl,
+                    rule: isLong ? 2 : 1,
+                    expiration: 4 * 3600
+                },
+                order_type: isLong ? "plan-close-long-position" : "plan-close-short-position"
+            };
+
+            console.log(`[MULTI-TP] Placing SL order: full remaining position at ${formattedSl}`);
+            const slOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
+
+            return {
+                entry_order_id: entryOrderResult.id,
+                tp1_order_id: tp1OrderResult.id,
+                tp2_order_id: tp2OrderResult.id,
+                stop_loss_order_id: slOrderResult.id,
+                message: `Multi-TP strategy executed successfully for ${market}. Entry: ${entryOrderResult.id}, TP1: ${tp1OrderResult.id} (${orderSizes.tp1Size} contracts), TP2: ${tp2OrderResult.id} (${orderSizes.tp2Size} contracts), SL: ${slOrderResult.id}`,
+                strategyType: 'multi-tp' as const,
+                orderSizes,
+                targetPrices: priceLevels
+            };
+        }
     }
 );

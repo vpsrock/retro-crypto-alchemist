@@ -319,3 +319,44 @@ export const CleanupOrphanedOrdersOutputSchema = z.object({
     orphaned_contracts_found: z.array(z.string()).optional(),
 });
 export type CleanupOrphanedOrdersOutput = z.infer<typeof CleanupOrphanedOrdersOutputSchema>;
+
+// Multi-TP Trade Schemas
+export const MultiTpOrderSizesSchema = z.object({
+  totalContracts: z.number().describe('Total contracts to trade.'),
+  tp1Size: z.number().describe('Contracts for TP1 (50% position).'),
+  tp2Size: z.number().describe('Contracts for TP2 (30% position).'),
+  runnerSize: z.number().describe('Contracts for runner (remaining ~20%).'),
+});
+export type MultiTpOrderSizes = z.infer<typeof MultiTpOrderSizesSchema>;
+
+export const MultiTpPriceLevelsSchema = z.object({
+  entryPrice: z.number().describe('Entry price of the position.'),
+  tp1Price: z.number().describe('Take profit 1 price (1.5% target).'),
+  tp2Price: z.number().describe('Take profit 2 price (2.5% target).'),
+  slPrice: z.number().describe('Initial stop loss price.'),
+});
+export type MultiTpPriceLevels = z.infer<typeof MultiTpPriceLevelsSchema>;
+
+export const PlaceTradeStrategyMultiTpInputSchema = z.object({
+  settle: z.enum(['usdt', 'btc']).describe('The settle currency for the futures contract.'),
+  tradeDetails: z.any().describe('Trade details including market, trade_call, etc.'),
+  tradeSizeUsd: z.number().describe('The size of the trade in USD.'),
+  leverage: z.number().describe('The leverage to use for the trade.'),
+  apiKey: z.string().describe('The Gate.io API key.'),
+  apiSecret: z.string().describe('The Gate.io API secret.'),
+  strategyType: z.enum(['single', 'multi-tp']).default('multi-tp').describe('Type of strategy to use.'),
+});
+export type PlaceTradeStrategyMultiTpInput = z.infer<typeof PlaceTradeStrategyMultiTpInputSchema>;
+
+export const PlaceTradeStrategyMultiTpOutputSchema = z.object({
+  entry_order_id: z.string().describe('The ID of the entry order.'),
+  tp1_order_id: z.string().optional().describe('The ID of the TP1 order.'),
+  tp2_order_id: z.string().optional().describe('The ID of the TP2 order.'),
+  stop_loss_order_id: z.string().describe('The ID of the stop loss order.'),
+  take_profit_order_id: z.string().optional().describe('Legacy: single TP order ID for backward compatibility.'),
+  message: z.string().describe('A message describing the result of the trade execution.'),
+  strategyType: z.enum(['single', 'multi-tp']).describe('Strategy type used.'),
+  orderSizes: MultiTpOrderSizesSchema.optional().describe('Breakdown of order sizes.'),
+  targetPrices: MultiTpPriceLevelsSchema.optional().describe('Target price levels.'),
+});
+export type PlaceTradeStrategyMultiTpOutput = z.infer<typeof PlaceTradeStrategyMultiTpOutputSchema>;

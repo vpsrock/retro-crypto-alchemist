@@ -2,8 +2,9 @@
 
 import { discoverContracts, DiscoverContractsInput } from "@/ai/flows/discover-contracts";
 import { analyzeTradeRecommendations, AnalyzeTradeRecommendationsInput } from "@/ai/flows/analyze-trade-recommendations";
-import { placeTradeStrategy, listOpenOrders, cancelOrder, listOpenPositions, cleanupOrphanedOrders } from "@/ai/flows/trade-management";
+import { placeTradeStrategy, placeTradeStrategyMultiTp, listOpenOrders, cancelOrder, listOpenPositions, cleanupOrphanedOrders } from "@/ai/flows/trade-management";
 import type { PlaceTradeStrategyInput, ListOpenOrdersInput, CancelOrderInput, ListOpenPositionsInput } from "@/ai/flows/trade-management";
+import type { PlaceTradeStrategyMultiTpInput } from "@/lib/schemas";
 
 export async function runSingleContractAnalysis(data: AnalyzeTradeRecommendationsInput) {
   const startTime = Date.now();
@@ -88,6 +89,24 @@ export async function runCleanupOrphanedOrders(data: ListOpenOrdersInput) {
         return { data: result };
     } catch (e: any) {
         console.error("Cleanup orphaned orders error:", e);
+        return { error: e.message || e.toString() };
+    }
+}
+
+export async function runPlaceTradeStrategyMultiTp(data: PlaceTradeStrategyMultiTpInput) {
+    try {
+        console.log(`[MULTI-TP] Executing enhanced trade strategy for ${data.tradeDetails?.market || 'unknown contract'}`);
+        const result = await placeTradeStrategyMultiTp(data);
+        console.log(`[MULTI-TP] Trade strategy result:`, {
+            strategyType: result.strategyType,
+            entryOrderId: result.entry_order_id,
+            tp1OrderId: result.tp1_order_id,
+            tp2OrderId: result.tp2_order_id,
+            stopLossOrderId: result.stop_loss_order_id
+        });
+        return { data: result };
+    } catch (e: any) {
+        console.error("Multi-TP trade strategy error:", e);
         return { error: e.message || e.toString() };
     }
 }

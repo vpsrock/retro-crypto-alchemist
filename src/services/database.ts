@@ -48,6 +48,25 @@ export interface TradePosition {
   unrealizedPnl: number;
   realizedPnl?: number;
   lastUpdated: number;
+  
+  // Multi-TP Strategy Enhancement (backward compatible)
+  strategyType?: 'single' | 'multi-tp'; // Default to 'single' for existing records
+  tp1OrderId?: string;
+  tp2OrderId?: string;
+  tp1FillSize?: number;
+  tp2FillSize?: number;
+  remainingSize?: number;
+  
+  // Multi-TP State tracking
+  isTp1Hit?: boolean;
+  isTp2Hit?: boolean;
+  isSlAtBreakEven?: boolean;
+  currentSlPrice?: number;
+  
+  // Multi-TP Price levels
+  tp1Price?: number;
+  tp2Price?: number;
+  originalSlPrice?: number;
 }
 
 export interface SchedulerStats {
@@ -894,6 +913,21 @@ async function migrateDatabase(): Promise<void> {
       'ALTER TABLE scheduled_jobs ADD COLUMN minVolume INTEGER NOT NULL DEFAULT 1000000',
       'ALTER TABLE scheduled_jobs ADD COLUMN sortBy TEXT NOT NULL DEFAULT "score"',
       'ALTER TABLE scheduled_jobs ADD COLUMN enhancedAnalysisEnabled INTEGER NOT NULL DEFAULT 0',
+      
+      // Multi-TP Strategy Enhancement columns
+      'ALTER TABLE trade_positions ADD COLUMN strategyType TEXT DEFAULT "single"',
+      'ALTER TABLE trade_positions ADD COLUMN tp1OrderId TEXT',
+      'ALTER TABLE trade_positions ADD COLUMN tp2OrderId TEXT',
+      'ALTER TABLE trade_positions ADD COLUMN tp1FillSize REAL DEFAULT 0',
+      'ALTER TABLE trade_positions ADD COLUMN tp2FillSize REAL DEFAULT 0',
+      'ALTER TABLE trade_positions ADD COLUMN remainingSize REAL',
+      'ALTER TABLE trade_positions ADD COLUMN isTp1Hit INTEGER DEFAULT 0',
+      'ALTER TABLE trade_positions ADD COLUMN isTp2Hit INTEGER DEFAULT 0',
+      'ALTER TABLE trade_positions ADD COLUMN isSlAtBreakEven INTEGER DEFAULT 0',
+      'ALTER TABLE trade_positions ADD COLUMN currentSlPrice REAL',
+      'ALTER TABLE trade_positions ADD COLUMN tp1Price REAL',
+      'ALTER TABLE trade_positions ADD COLUMN tp2Price REAL',
+      'ALTER TABLE trade_positions ADD COLUMN originalSlPrice REAL',
     ];
 
     let completedMigrations = 0;
@@ -951,4 +985,217 @@ export function closeDatabase(): void {
     });
     db = null;
   }
+}
+
+// ====== MULTI-TP POSITION MANAGEMENT FUNCTIONS ======
+
+/**
+ * Update multi-TP position with order IDs and strategy details
+ */
+export function updatePositionMultiTpOrders(
+  positionId: string,
+  orders: {
+    entryOrderId?: string;
+    tp1OrderId?: string;
+    tp2OrderId?: string;
+    stopLossOrderId?: string;
+    takeProfitOrderId?: string; // For backward compatibility
+    status?: string;
+    strategyType?: 'single' | 'multi-tp';
+    orderSizes?: any;
+    targetPrices?: any;
+  }
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    const updateFields: string[] = [];
+    const params: any[] = [];
+
+    // Handle order IDs
+    if (orders.entryOrderId !== undefined) {
+      updateFields.push('entryOrderId = ?');
+      params.push(orders.entryOrderId);
+    }
+    if (orders.tp1OrderId !== undefined) {
+      updateFields.push('tp1OrderId = ?');
+      params.push(orders.tp1OrderId);
+    }
+    if (orders.tp2OrderId !== undefined) {
+      updateFields.push('tp2OrderId = ?');
+      params.push(orders.tp2OrderId);
+    }
+    if (orders.stopLossOrderId !== undefined) {
+      updateFields.push('stopLossOrderId = ?');
+      params.push(orders.stopLossOrderId);
+    }
+    if (orders.takeProfitOrderId !== undefined) {
+      updateFields.push('takeProfitOrderId = ?');
+      params.push(orders.takeProfitOrderId);
+    }
+    if (orders.status !== undefined) {
+      updateFields.push('status = ?');
+      params.push(orders.status);
+    }
+    if (orders.strategyType !== undefined) {
+      updateFields.push('strategyType = ?');
+      params.push(orders.strategyType);
+    }
+
+    // Handle multi-TP specific fields
+    if (orders.orderSizes) {
+      updateFields.push('remainingSize = ?');
+      params.push(orders.orderSizes.totalContracts);
+    }
+    if (orders.targetPrices) {
+      updateFields.push('tp1Price = ?', 'tp2Price = ?', 'originalSlPrice = ?');
+      params.push(orders.targetPrices.tp1Price, orders.targetPrices.tp2Price, orders.targetPrices.slPrice);
+    }
+
+    updateFields.push('lastUpdated = ?');
+    params.push(Date.now());
+    params.push(positionId);
+
+    const sql = `UPDATE trade_positions SET ${updateFields.join(', ')} WHERE id = ?`;
+    
+    db.run(sql, params, function(err) {
+      if (err) {
+        console.error('Error updating position multi-TP orders:', err);
+        reject(err);
+      } else {
+        console.log(`Updated position ${positionId} with multi-TP order details`);
+        resolve();
+      }
+    });
+  });
+}
+
+/**
+ * Update TP1 hit status and fill size
+ */
+export function updateTp1Hit(positionId: string, fillSize: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    const sql = `
+      UPDATE trade_positions 
+      SET isTp1Hit = 1, 
+          tp1FillSize = ?, 
+          remainingSize = size - ?,
+          lastUpdated = ?
+      WHERE id = ?
+    `;
+    
+    db.run(sql, [fillSize, fillSize, Date.now(), positionId], function(err) {
+      if (err) {
+        console.error('Error updating TP1 hit:', err);
+        reject(err);
+      } else {
+        console.log(`Updated position ${positionId} - TP1 hit with ${fillSize} contracts`);
+        resolve();
+      }
+    });
+  });
+}
+
+/**
+ * Update TP2 hit status and fill size
+ */
+export function updateTp2Hit(positionId: string, fillSize: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    const sql = `
+      UPDATE trade_positions 
+      SET isTp2Hit = 1, 
+          tp2FillSize = ?, 
+          remainingSize = remainingSize - ?,
+          lastUpdated = ?
+      WHERE id = ?
+    `;
+    
+    db.run(sql, [fillSize, fillSize, Date.now(), positionId], function(err) {
+      if (err) {
+        console.error('Error updating TP2 hit:', err);
+        reject(err);
+      } else {
+        console.log(`Updated position ${positionId} - TP2 hit with ${fillSize} contracts`);
+        resolve();
+      }
+    });
+  });
+}
+
+/**
+ * Update stop loss to break-even status
+ */
+export function updateSlToBreakEven(positionId: string, newSlOrderId: string, breakEvenPrice: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    const sql = `
+      UPDATE trade_positions 
+      SET isSlAtBreakEven = 1, 
+          stopLossOrderId = ?,
+          currentSlPrice = ?,
+          lastUpdated = ?
+      WHERE id = ?
+    `;
+    
+    db.run(sql, [newSlOrderId, breakEvenPrice, Date.now(), positionId], function(err) {
+      if (err) {
+        console.error('Error updating SL to break-even:', err);
+        reject(err);
+      } else {
+        console.log(`Updated position ${positionId} - SL moved to break-even at ${breakEvenPrice}`);
+        resolve();
+      }
+    });
+  });
+}
+
+/**
+ * Get multi-TP positions that need monitoring
+ */
+export function getMultiTpPositions(): Promise<TradePosition[]> {
+  return new Promise((resolve, reject) => {
+    if (!db) {
+      reject(new Error('Database not initialized'));
+      return;
+    }
+
+    const sql = `
+      SELECT * FROM trade_positions 
+      WHERE status IN ('opening', 'open') 
+        AND strategyType = 'multi-tp'
+      ORDER BY openedAt DESC
+    `;
+    
+    db.all(sql, [], (err, rows: any[]) => {
+      if (err) {
+        console.error('Error getting multi-TP positions:', err);
+        reject(err);
+      } else {
+        const positions = rows.map(row => ({
+          ...row,
+          isTp1Hit: Boolean(row.isTp1Hit),
+          isTp2Hit: Boolean(row.isTp2Hit),
+          isSlAtBreakEven: Boolean(row.isSlAtBreakEven)
+        }));
+        resolve(positions);
+      }
+    });
+  });
 }

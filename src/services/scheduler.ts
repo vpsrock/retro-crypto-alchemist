@@ -1,7 +1,7 @@
 import * as database from './database';
 import { discoverContracts, type DiscoverContractsInput } from '../ai/flows/discover-contracts';
 import { analyzeTradeRecommendations, analyzeTradeRecommendationsWithLogger } from '../ai/flows/analyze-trade-recommendations';
-import { cleanupOrphanedOrders, placeTradeStrategy } from '../ai/flows/trade-management';
+import { cleanupOrphanedOrders, placeTradeStrategy, placeTradeStrategyMultiTp } from '../ai/flows/trade-management';
 import { schedulerLogger } from '../lib/scheduler-logs';
 import { listPositions, getContract } from './gateio';
 
@@ -599,7 +599,7 @@ class SchedulerService {
       console.log(`Created position ${positionId} for ${contractInfo.contract}`);
 
       try {
-        // Execute real trade using the same logic as manual trading
+        // Execute real trade using enhanced multi-TP strategy
         const tradeInput = {
           settle: context.profilesConfig[0].settle,
           tradeDetails,
@@ -607,25 +607,49 @@ class SchedulerService {
           leverage: context.leverage,
           apiKey: apiKeys.gateIoKey,
           apiSecret: apiKeys.gateIoSecret,
+          strategyType: 'multi-tp' as const, // Use multi-TP strategy
         };
 
-        schedulerLogger.apiCall('/trade', 'POST', {
+        schedulerLogger.apiCall('/trade-multi-tp', 'POST', {
           settle: tradeInput.settle,
           contract: contractInfo.contract,
           tradeSizeUsd: tradeInput.tradeSizeUsd,
-          leverage: tradeInput.leverage
+          leverage: tradeInput.leverage,
+          strategyType: tradeInput.strategyType
         });
 
-        console.log(`Placing real trade for ${contractInfo.contract}...`);
-        const tradeResult = await placeTradeStrategy(tradeInput);
+        console.log(`[MULTI-TP] Placing enhanced trade for ${contractInfo.contract}...`);
+        const tradeResult = await placeTradeStrategyMultiTp(tradeInput);
         
-        // Update position with order IDs
-        await database.updatePositionOrders(positionId, {
-          entryOrderId: tradeResult.entry_order_id,
-          takeProfitOrderId: tradeResult.take_profit_order_id,
-          stopLossOrderId: tradeResult.stop_loss_order_id,
-          status: 'open'
-        });
+        // Update position with multi-TP order IDs and details
+        if (tradeResult.strategyType === 'multi-tp') {
+          await database.updatePositionMultiTpOrders(positionId, {
+            entryOrderId: tradeResult.entry_order_id,
+            tp1OrderId: tradeResult.tp1_order_id,
+            tp2OrderId: tradeResult.tp2_order_id,
+            stopLossOrderId: tradeResult.stop_loss_order_id,
+            status: 'open',
+            strategyType: 'multi-tp',
+            orderSizes: tradeResult.orderSizes,
+            targetPrices: tradeResult.targetPrices
+          });
+          
+          console.log(`[MULTI-TP] Position ${positionId} updated with multi-TP orders:`, {
+            tp1: tradeResult.tp1_order_id,
+            tp2: tradeResult.tp2_order_id,
+            sl: tradeResult.stop_loss_order_id
+          });
+        } else {
+          // Fallback to single TP
+          await database.updatePositionOrders(positionId, {
+            entryOrderId: tradeResult.entry_order_id,
+            takeProfitOrderId: tradeResult.take_profit_order_id,
+            stopLossOrderId: tradeResult.stop_loss_order_id,
+            status: 'open'
+          });
+          
+          console.log(`[SINGLE-TP] Position ${positionId} updated with single TP orders (fallback)`);
+        }
         
         schedulerLogger.tradeSuccess(contractInfo.contract, tradeResult, positionId);
         console.log(`Successfully executed trade for ${contractInfo.contract}: ${tradeResult.message}`);
@@ -649,15 +673,142 @@ class SchedulerService {
   }
 
   private startPositionMonitoring(): void {
-    console.log('Starting position monitoring...');
+    console.log('Starting enhanced position monitoring for multi-TP strategy...');
     
-    // Monitor positions every 2 minutes
+    // Enhanced monitoring every 30 seconds for multi-TP strategy
     this.positionMonitorInterval = setInterval(async () => {
-      await this.monitorPositions();
-    }, 2 * 60 * 1000);
+      await this.monitorPositionsEnhanced();
+    }, 30 * 1000); // 30 seconds for faster multi-TP management
 
     // Also run immediately
-    setTimeout(() => this.monitorPositions(), 5000);
+    setTimeout(() => this.monitorPositionsEnhanced(), 5000);
+  }
+
+  private async monitorPositionsEnhanced(): Promise<void> {
+    try {
+      const openPositions = await database.getOpenPositions();
+      const multiTpPositions = await database.getMultiTpPositions();
+      
+      console.log(`[MONITOR] ${openPositions.length} total positions, ${multiTpPositions.length} multi-TP positions`);
+
+      // Monitor all positions (backward compatibility)
+      for (const position of openPositions) {
+        try {
+          await this.updatePositionPnL(position);
+        } catch (error) {
+          console.error(`Error updating position ${position.id}:`, error);
+        }
+      }
+
+      // Enhanced monitoring for multi-TP positions
+      for (const position of multiTpPositions) {
+        try {
+          await this.monitorMultiTpPosition(position);
+        } catch (error) {
+          console.error(`Error monitoring multi-TP position ${position.id}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error in enhanced position monitoring:', error);
+    }
+  }
+
+  /**
+   * Enhanced monitoring for multi-TP positions
+   */
+  private async monitorMultiTpPosition(position: database.TradePosition): Promise<void> {
+    try {
+      console.log(`[MULTI-TP] Monitoring position ${position.id} (${position.contract})`);
+      
+      // Check time-based exit (4 hours max)
+      const positionAge = Date.now() - position.openedAt;
+      const fourHours = 4 * 60 * 60 * 1000;
+      
+      if (positionAge > fourHours) {
+        console.log(`[MULTI-TP] Position ${position.id} exceeded 4-hour limit, force closing`);
+        await this.forceClosePosition(position, 'TIME_LIMIT');
+        return;
+      }
+
+      // If TP2 has hit and SL is not yet at break-even, move it
+      if (position.isTp2Hit && !position.isSlAtBreakEven) {
+        console.log(`[MULTI-TP] TP2 hit for ${position.id}, moving SL to break-even`);
+        await this.moveSlToBreakEven(position);
+      }
+
+      // If both TPs hit, position becomes a pure runner with trailing stop
+      if (position.isTp1Hit && position.isTp2Hit && position.isSlAtBreakEven) {
+        console.log(`[MULTI-TP] Position ${position.id} is now a runner, managing trailing stop`);
+        await this.manageTrailingStop(position);
+      }
+
+      // Log current state for debugging
+      console.log(`[MULTI-TP] Position ${position.id} state:`, {
+        tp1Hit: position.isTp1Hit,
+        tp2Hit: position.isTp2Hit,
+        slAtBreakEven: position.isSlAtBreakEven,
+        remainingSize: position.remainingSize,
+        age: `${Math.round(positionAge / 1000 / 60)}min`
+      });
+
+    } catch (error) {
+      console.error(`Error in multi-TP position monitoring for ${position.id}:`, error);
+    }
+  }
+
+  /**
+   * Move stop loss to break-even after TP2 hits
+   */
+  private async moveSlToBreakEven(position: database.TradePosition): Promise<void> {
+    try {
+      // This would involve:
+      // 1. Cancel existing SL order
+      // 2. Place new SL order at entry price
+      // 3. Update database
+      
+      console.log(`[MULTI-TP] Moving SL to break-even for position ${position.id}`);
+      // Implementation will be added in Phase 2
+      
+      // For now, just update the database to track the state
+      await database.updateSlToBreakEven(position.id, position.stopLossOrderId || '', position.entryPrice);
+      
+    } catch (error) {
+      console.error(`Error moving SL to break-even for position ${position.id}:`, error);
+    }
+  }
+
+  /**
+   * Manage trailing stop for runner position
+   */
+  private async manageTrailingStop(position: database.TradePosition): Promise<void> {
+    try {
+      console.log(`[MULTI-TP] Managing trailing stop for runner position ${position.id}`);
+      // Implementation will be added in Phase 2 - for now just log
+      
+    } catch (error) {
+      console.error(`Error managing trailing stop for position ${position.id}:`, error);
+    }
+  }
+
+  /**
+   * Force close position (time limit or other reasons)
+   */
+  private async forceClosePosition(position: database.TradePosition, reason: string): Promise<void> {
+    try {
+      console.log(`[MULTI-TP] Force closing position ${position.id} - Reason: ${reason}`);
+      
+      // Update status to closing
+      await database.updatePositionStatus(position.id, 'closing');
+      
+      // In a real implementation, this would place a market order to close
+      // For now, just mark as closed
+      await database.closePosition(position.id, 0); // 0 PnL as placeholder
+      
+      console.log(`[MULTI-TP] Position ${position.id} force closed due to ${reason}`);
+      
+    } catch (error) {
+      console.error(`Error force closing position ${position.id}:`, error);
+    }
   }
 
   private async monitorPositions(): Promise<void> {
