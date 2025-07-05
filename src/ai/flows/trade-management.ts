@@ -22,8 +22,9 @@ import {
     updateLeverage,
     listPositions,
 } from '@/services/gateio';
-import { getDynamicPositionDB } from '@/services/dynamic-position-db';
-import type { PositionState } from '@/lib/dynamic-position-schemas';
+import { getTimeManager } from '@/services/time-based-position-manager';
+import Database from 'better-sqlite3';
+import path from 'path';
 import { 
     PlaceTradeStrategyInputSchema, 
     PlaceTradeStrategyOutputSchema, 
@@ -580,50 +581,40 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
                 placedOrders.push(slOrderResult);
                 
                 // Save position state to database for dynamic management
-                const db = getDynamicPositionDB();
                 const positionId = `pos_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                 
-                const positionState: PositionState = {
-                    id: positionId,
-                    contract: market,
-                    direction: trade_call as 'long' | 'short',
-                    size: totalContracts,
-                    entryPrice: lastPrice,
-                    entryOrderId: entryOrderResult.id.toString(),
-                    strategyType: 'multi-tp',
-                    tp1Size: orderSizes.tp1Size,
-                    tp2Size: orderSizes.tp2Size,
-                    runnerSize: orderSizes.runnerSize,
-                    tp1OrderId: tp1OrderResult.id.toString(),
-                    tp2OrderId: tp2OrderResult.id.toString(),
-                    currentSlOrderId: slOrderResult.id.toString(),
-                    phase: 'initial',
-                    remainingSize: totalContracts,
-                    realizedPnl: 0,
-                    originalSlPrice: priceLevels.slPrice,
-                    currentSlPrice: priceLevels.slPrice,
-                    tp1Price: priceLevels.tp1Price,
-                    tp2Price: priceLevels.tp2Price,
-                    createdAt: new Date().toISOString(),
-                    lastUpdated: new Date().toISOString(),
+                savePositionState(
+                    positionId,
+                    market,
+                    trade_call as 'long' | 'short',
+                    totalContracts,
+                    lastPrice,
+                    entryOrderResult.id.toString(),
+                    'multi-tp',
+                    tp1OrderResult.id.toString(),
+                    tp2OrderResult.id.toString(),
+                    slOrderResult.id.toString(),
+                    orderSizes,
+                    priceLevels,
                     apiKey,
                     apiSecret,
                     settle
-                };
+                );
                 
-                db.savePositionState(positionState);
-                console.log(`[MULTI-TP] Position state saved to database: ${positionId}`);
+                // Register position for time-based tracking
+                const timeManager = getTimeManager();
+                timeManager.registerPosition(positionId, market);
                 
                 return {
                     entry_order_id: entryOrderResult.id,
                     tp1_order_id: tp1OrderResult.id,
                     tp2_order_id: tp2OrderResult.id,
                     stop_loss_order_id: slOrderResult.id,
+                    position_id: positionId,
                     message: `Multi-TP strategy executed successfully for ${market}. Entry: ${entryOrderResult.id}, TP1: ${tp1OrderResult.id}, TP2: ${tp2OrderResult.id}, SL: ${slOrderResult.id}`,
                     strategyType: 'multi-tp' as const,
                     orderSizes,
-                    targetPrices: priceLevels,
-                    positionId // Add position ID to response
+                    targetPrices: priceLevels
                 };
                 
             } catch (conditionalOrderError: any) {
@@ -683,3 +674,86 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
  * - 86400 = 1 day (minimum allowed)
  * - We use 1 day expiration for all TP/SL orders
  */
+
+// ===== DYNAMIC POSITION MANAGEMENT INTEGRATION =====
+
+/**
+ * Database helper for dynamic position management
+ */
+function getDynamicPositionDB(): Database.Database {
+    const dbPath = path.join(process.cwd(), 'trades.db');
+    return new Database(dbPath);
+}
+
+/**
+ * Save position state for dynamic management
+ */
+function savePositionState(
+    positionId: string,
+    contract: string,
+    direction: 'long' | 'short',
+    size: number,
+    entryPrice: number,
+    entryOrderId: string,
+    strategyType: 'single' | 'multi-tp',
+    tp1OrderId: string,
+    tp2OrderId: string | undefined,
+    slOrderId: string,
+    orderSizes: any,
+    priceLevels: any,
+    apiKey: string,
+    apiSecret: string,
+    settle: 'usdt' | 'btc'
+): void {
+    const db = getDynamicPositionDB();
+    
+    try {
+        const stmt = db.prepare(`
+            INSERT INTO position_states (
+                id, contract, direction, size, entry_price, entry_order_id,
+                strategy_type, tp1_size, tp2_size, runner_size,
+                tp1_order_id, tp2_order_id, current_sl_order_id,
+                phase, remaining_size, realized_pnl,
+                original_sl_price, current_sl_price, tp1_price, tp2_price,
+                created_at, last_updated, api_key, api_secret, settle
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        const now = new Date().toISOString();
+        
+        stmt.run(
+            positionId,
+            contract,
+            direction,
+            size,
+            entryPrice,
+            entryOrderId,
+            strategyType,
+            orderSizes.tp1Size || null,
+            orderSizes.tp2Size || null,
+            orderSizes.runnerSize || null,
+            tp1OrderId,
+            tp2OrderId || null,
+            slOrderId,
+            'initial',
+            size,
+            0,
+            priceLevels.slPrice,
+            priceLevels.slPrice,
+            priceLevels.tp1Price || null,
+            priceLevels.tp2Price || null,
+            now,
+            now,
+            apiKey,
+            apiSecret,
+            settle
+        );
+        
+        console.log(`[DYNAMIC-DB] Saved position state for ${contract} (${positionId})`);
+        
+    } catch (error) {
+        console.error(`[DYNAMIC-DB] Failed to save position state for ${contract}:`, error);
+    } finally {
+        db.close();
+    }
+}
