@@ -139,31 +139,39 @@ export class DynamicPositionMonitor {
         
         try {
             console.log('[MONITOR] 🔄 Starting monitoring cycle...');
+            this.logger?.logInfo('[MONITOR] 🔄 Starting monitoring cycle...');
             
             // Get all active positions from database
             const activePositions = this.getActivePositions();
             console.log(`[MONITOR] 📊 Found ${activePositions.length} active positions in database`);
+            this.logger?.logInfo(`[MONITOR] 📊 Found ${activePositions.length} active positions in database`);
             
             if (activePositions.length === 0) {
                 console.log('[MONITOR] 💤 No active positions to monitor');
+                this.logger?.logInfo('[MONITOR] 💤 No active positions to monitor');
                 const duration = Date.now() - startTime;
                 console.log(`[MONITOR] ✅ Cycle completed in ${duration}ms (no positions)`);
+                this.logger?.logInfo(`[MONITOR] ✅ Cycle completed in ${duration}ms (no positions)`);
                 this.lastSuccessfulCycleTimestamp = new Date().toISOString();
                 return;
             }
 
             // First, reconcile positions with exchange to clean up stale data
             console.log('[MONITOR] 🔍 Starting position reconciliation...');
+            this.logger?.logInfo('[MONITOR] 🔍 Starting position reconciliation...');
             await this.reconcilePositions(activePositions);
 
             // Get updated active positions after reconciliation
             const reconciledPositions = this.getActivePositions();
             console.log(`[MONITOR] 🧹 After reconciliation: ${reconciledPositions.length} truly active positions`);
+            this.logger?.logInfo(`[MONITOR] 🧹 After reconciliation: ${reconciledPositions.length} truly active positions`);
 
             if (reconciledPositions.length === 0) {
                 console.log('[MONITOR] 💤 No positions remain after reconciliation');
+                this.logger?.logInfo('[MONITOR] 💤 No positions remain after reconciliation');
                 const duration = Date.now() - startTime;
                 console.log(`[MONITOR] ✅ Cycle completed in ${duration}ms (all reconciled)`);
+                this.logger?.logInfo(`[MONITOR] ✅ Cycle completed in ${duration}ms (all reconciled)`);
                 this.lastSuccessfulCycleTimestamp = new Date().toISOString();
                 return;
             }
@@ -171,14 +179,17 @@ export class DynamicPositionMonitor {
             // Group by API credentials to batch requests
             const positionGroups = this.groupPositionsByCredentials(reconciledPositions);
             console.log(`[MONITOR] 👥 Grouped into ${positionGroups.length} credential groups`);
+            this.logger?.logInfo(`[MONITOR] 👥 Grouped into ${positionGroups.length} credential groups`);
             
             for (const group of positionGroups) {
                 console.log(`[MONITOR] 🔧 Processing group with ${group.positions.length} positions...`);
+                this.logger?.logInfo(`[MONITOR] 🔧 Processing group with ${group.positions.length} positions...`);
                 await this.monitorPositionGroup(group);
             }
 
             const duration = Date.now() - startTime;
             console.log(`[MONITOR] ✅ Cycle completed successfully in ${duration}ms`);
+            this.logger?.logInfo(`[MONITOR] ✅ Cycle completed successfully in ${duration}ms`);
 
             // Update health status on success
             this.lastSuccessfulCycleTimestamp = new Date().toISOString();
@@ -186,6 +197,7 @@ export class DynamicPositionMonitor {
         } catch (error) {
             const duration = Date.now() - startTime;
             console.error(`[MONITOR] ❌ Error in monitoring cycle (${duration}ms):`, error);
+            this.logger?.logError(`[MONITOR] ❌ Error in monitoring cycle (${duration}ms)`, { error: String(error) });
             
             // Update health status with error
             this.lastError = {
@@ -227,7 +239,7 @@ export class DynamicPositionMonitor {
             
             // Get actual POSITIONS from exchange (not orders)
             const exchangePositions = await listPositions(
-                positions[0].settle,
+                (positions[0] as any).settle,
                 credentials.apiKey,
                 credentials.apiSecret
             );
@@ -241,13 +253,23 @@ export class DynamicPositionMonitor {
 
             console.log(`[MONITOR] 🔍 Exchange has active positions for: ${Array.from(activeContracts).join(', ')}`);
 
-            // Check each position in our database
+            // Check each position in our database and mark stale ones as completed
+            let staleCleaned = 0;
             for (const position of positions) {
-                if (!activeContracts.has(position.contract)) {
+                const contract = (position as any).contract;
+                const id = (position as any).id;
+                if (!activeContracts.has(contract)) {
                     // Position no longer exists on exchange - mark as completed
                     this.markPositionCompleted(position, 'position_closed_on_exchange');
-                    console.log(`[MONITOR] 🧹 Marked stale position ${position.contract} (${position.id}) as completed - position closed on exchange`);
+                    console.log(`[MONITOR] 🧹 Marked stale position ${contract} (${id}) as completed - position closed on exchange`);
+                    this.logger?.logInfo(`[MONITOR] 🧹 Marked stale position ${contract} (${id}) as completed - position closed on exchange`);
+                    staleCleaned++;
                 }
+            }
+            
+            if (staleCleaned > 0) {
+                console.log(`[MONITOR] 🧹 Cleaned up ${staleCleaned} stale positions from database`);
+                this.logger?.logInfo(`[MONITOR] 🧹 Cleaned up ${staleCleaned} stale positions from database`);
             }
         } catch (error) {
             console.error(`[MONITOR] Error reconciling position group:`, error);
@@ -260,22 +282,27 @@ export class DynamicPositionMonitor {
      */
     private markPositionCompleted(position: PositionState, reason: string): void {
         try {
+            const id = (position as any).id;
+            const contract = (position as any).contract;
+            const phase = (position as any).phase;
+            
             this.db.prepare(`
                 UPDATE position_states 
                 SET phase = 'completed',
                     last_updated = ?
                 WHERE id = ?
-            `).run(new Date().toISOString(), position.id);
+            `).run(new Date().toISOString(), id);
 
             // Log the cleanup action
-            this.logExecution(position.id, 'position_auto_completed', {
-                contract: position.contract,
+            this.logExecution(id, 'position_auto_completed', {
+                contract: contract,
                 reason: reason,
-                originalPhase: position.phase
+                originalPhase: phase
             }, 0, true);
 
         } catch (error) {
-            console.error(`[MONITOR] Failed to mark position ${position.id} as completed:`, error);
+            const id = (position as any).id;
+            console.error(`[MONITOR] Failed to mark position ${id} as completed:`, error);
         }
     }
 
@@ -285,11 +312,12 @@ export class DynamicPositionMonitor {
     private async monitorPositionGroup(group: { credentials: any, positions: PositionState[] }): Promise<void> {
         const { credentials, positions } = group;
         try {
-            console.log(`[MONITOR] Checking ${positions.length} positions for ${positions[0]?.settle} settle`);
+            const settle = (positions[0] as any)?.settle;
+            console.log(`[MONITOR] Checking ${positions.length} positions for ${settle} settle`);
 
             // Get current order states from Gate.io
             const currentOrders = await listPriceTriggeredOrders(
-                positions[0].settle,
+                settle,
                 'open',
                 credentials.apiKey,
                 credentials.apiSecret
@@ -297,8 +325,11 @@ export class DynamicPositionMonitor {
 
             // Process each position
             for (const position of positions) {
-                if (this.processingLock.has(position.id)) {
-                    console.log(`[MONITOR] Skipping ${position.contract} - already processing`);
+                const id = (position as any).id;
+                const contract = (position as any).contract;
+                
+                if (this.processingLock.has(id)) {
+                    console.log(`[MONITOR] Skipping ${contract} - already processing`);
                     continue;
                 }
 
@@ -308,9 +339,10 @@ export class DynamicPositionMonitor {
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             const apiKeySnippet = credentials.apiKey ? `${credentials.apiKey.substring(0, 4)}...` : 'N/A';
+            const settle = (positions[0] as any)?.settle;
             const errorContext = {
                 apiKeySnippet,
-                settle: positions[0]?.settle,
+                settle: settle,
                 positionCount: positions.length,
                 error: errorMessage,
             };
@@ -343,15 +375,19 @@ export class DynamicPositionMonitor {
         currentOrders: any[], 
         credentials: { apiKey: string, apiSecret: string }
     ): Promise<void> {
-        const positionKey = `${position.contract}_${position.id}`;
-        this.processingLock.add(position.id);
+        const contract = (position as any).contract;
+        const id = (position as any).id;
+        const phase = (position as any).phase;
+        
+        const positionKey = `${contract}_${id}`;
+        this.processingLock.add(id);
 
         try {
-            console.log(`[MONITOR] Checking ${position.contract} (${position.phase})`);
+            console.log(`[MONITOR] Checking ${contract} (${phase})`);
 
             // Get orders related to this position
             const positionOrders = currentOrders.filter(order => 
-                order.initial?.contract === position.contract
+                order.initial?.contract === contract
             );
 
             // Get previous state for comparison
@@ -377,13 +413,13 @@ export class DynamicPositionMonitor {
             });
 
         } catch (error) {
-            console.error(`[MONITOR] Error checking ${position.contract}:`, error);
-            this.logExecution(position.id, 'position_check_error', {
-                contract: position.contract,
+            console.error(`[MONITOR] Error checking ${contract}:`, error);
+            this.logExecution(id, 'position_check_error', {
+                contract: contract,
                 error: error instanceof Error ? error.message : String(error)
             }, 0, false, String(error));
         } finally {
-            this.processingLock.delete(position.id);
+            this.processingLock.delete(id);
         }
     }
 
@@ -432,9 +468,14 @@ export class DynamicPositionMonitor {
      * Determine what type of fill occurred based on order ID
      */
     private determineFillType(orderId: string, position: PositionState): 'tp1' | 'tp2' | 'sl' | null {
-        if (orderId === position.tp1OrderId) return 'tp1';
-        if (orderId === position.tp2OrderId) return 'tp2';
-        if (orderId === position.currentSlOrderId) return 'sl';
+        // Access database columns using snake_case (as returned by SQLite)
+        const tp1OrderId = (position as any).tp1_order_id;
+        const tp2OrderId = (position as any).tp2_order_id;
+        const currentSlOrderId = (position as any).current_sl_order_id;
+        
+        if (orderId === tp1OrderId) return 'tp1';
+        if (orderId === tp2OrderId) return 'tp2';
+        if (orderId === currentSlOrderId) return 'sl';
         return null;
     }
 
@@ -442,10 +483,15 @@ export class DynamicPositionMonitor {
      * Estimate fill size based on fill type
      */
     private estimateFillSize(fillType: 'tp1' | 'tp2' | 'sl', position: PositionState): number {
+        // Access database columns using snake_case (as returned by SQLite)
+        const tp1Size = (position as any).tp1_size;
+        const tp2Size = (position as any).tp2_size;
+        const remainingSize = (position as any).remaining_size;
+        
         switch (fillType) {
-            case 'tp1': return position.tp1Size || 0;
-            case 'tp2': return position.tp2Size || 0;
-            case 'sl': return position.remainingSize;
+            case 'tp1': return tp1Size || 0;
+            case 'tp2': return tp2Size || 0;
+            case 'sl': return remainingSize;
             default: return 0;
         }
     }
@@ -517,7 +563,8 @@ export class DynamicPositionMonitor {
         fillEvent: OrderFillEvent,
         credentials: { apiKey: string, apiSecret: string }
     ): Promise<void> {
-        console.log(`[MONITOR] 📈 TP1 filled for ${position.contract} - moving SL to break-even`);
+        const contract = (position as any).contract;
+        console.log(`[MONITOR] 📈 TP1 filled for ${contract} - moving SL to break-even`);
 
         // Calculate break-even price with buffer
         const breakEvenPrice = this.calculateBreakEvenPrice(position);
@@ -525,8 +572,9 @@ export class DynamicPositionMonitor {
         // Update SL to break-even
         await this.updateStopLoss(position, breakEvenPrice, 'break_even', credentials);
         
-        // Update position state
-        const newRemainingSize = position.remainingSize - fillEvent.fillSize;
+        // Update position state - use snake_case access
+        const remainingSize = (position as any).remaining_size;
+        const newRemainingSize = remainingSize - fillEvent.fillSize;
         const realizedPnl = this.calculateRealizedPnl(position, fillEvent);
 
         this.db.prepare(`
@@ -536,7 +584,7 @@ export class DynamicPositionMonitor {
                 realized_pnl = realized_pnl + ?,
                 last_updated = ?
             WHERE id = ?
-        `).run(newRemainingSize, realizedPnl, new Date().toISOString(), position.id);
+        `).run(newRemainingSize, realizedPnl, new Date().toISOString(), (position as any).id);
 
         console.log(`[MONITOR] ✅ TP1 processed: ${fillEvent.fillSize} contracts closed, ${newRemainingSize} remaining, SL moved to break-even`);
     }
@@ -549,10 +597,12 @@ export class DynamicPositionMonitor {
         fillEvent: OrderFillEvent,
         credentials: { apiKey: string, apiSecret: string }
     ): Promise<void> {
-        console.log(`[MONITOR] 🚀 TP2 filled for ${position.contract} - implementing trailing SL`);
+        const contract = (position as any).contract;
+        console.log(`[MONITOR] 🚀 TP2 filled for ${contract} - implementing trailing SL`);
 
-        // Update position state first
-        const newRemainingSize = position.remainingSize - fillEvent.fillSize;
+        // Update position state first - use snake_case access
+        const remainingSize = (position as any).remaining_size;
+        const newRemainingSize = remainingSize - fillEvent.fillSize;
         const realizedPnl = this.calculateRealizedPnl(position, fillEvent);
 
         this.db.prepare(`
@@ -562,7 +612,7 @@ export class DynamicPositionMonitor {
                 realized_pnl = realized_pnl + ?,
                 last_updated = ?
             WHERE id = ?
-        `).run(newRemainingSize, realizedPnl, new Date().toISOString(), position.id);
+        `).run(newRemainingSize, realizedPnl, new Date().toISOString(), (position as any).id);
 
         // TODO: Implement trailing SL logic here
         // For now, just log that TP2 was filled
@@ -576,7 +626,8 @@ export class DynamicPositionMonitor {
         position: PositionState,
         fillEvent: OrderFillEvent
     ): Promise<void> {
-        console.log(`[MONITOR] 🛑 SL filled for ${position.contract} - position stopped out`);
+        const contract = (position as any).contract;
+        console.log(`[MONITOR] 🛑 SL filled for ${contract} - position stopped out`);
 
         const realizedPnl = this.calculateRealizedPnl(position, fillEvent);
 
@@ -587,7 +638,7 @@ export class DynamicPositionMonitor {
                 realized_pnl = realized_pnl + ?,
                 last_updated = ?
             WHERE id = ?
-        `).run(realizedPnl, new Date().toISOString(), position.id);
+        `).run(realizedPnl, new Date().toISOString(), (position as any).id);
 
         console.log(`[MONITOR] ✅ SL processed: Position fully closed with ${realizedPnl > 0 ? 'profit' : 'loss'}`);
     }
@@ -596,18 +647,26 @@ export class DynamicPositionMonitor {
      * Calculate break-even price with buffer
      */
     private calculateBreakEvenPrice(position: PositionState): number {
-        const buffer = position.entryPrice * this.config.breakEvenBuffer;
-        return position.direction === 'long' 
-            ? position.entryPrice + buffer
-            : position.entryPrice - buffer;
+        // Access database columns using snake_case (as returned by SQLite)
+        const entryPrice = (position as any).entry_price;
+        const direction = (position as any).direction;
+        
+        const buffer = entryPrice * this.config.breakEvenBuffer;
+        return direction === 'long' 
+            ? entryPrice + buffer
+            : entryPrice - buffer;
     }
 
     /**
      * Calculate realized PnL for a fill
      */
     private calculateRealizedPnl(position: PositionState, fillEvent: OrderFillEvent): number {
-        const priceDiff = fillEvent.fillPrice - position.entryPrice;
-        const multiplier = position.direction === 'long' ? 1 : -1;
+        // Access database columns using snake_case (as returned by SQLite)
+        const entryPrice = (position as any).entry_price;
+        const direction = (position as any).direction;
+        
+        const priceDiff = fillEvent.fillPrice - entryPrice;
+        const multiplier = direction === 'long' ? 1 : -1;
         return priceDiff * multiplier * fillEvent.fillSize;
     }
 
@@ -621,8 +680,14 @@ export class DynamicPositionMonitor {
         credentials: { apiKey: string, apiSecret: string }
     ): Promise<void> {
         try {
+            // Access database columns using snake_case (as returned by SQLite)
+            const settle = (position as any).settle;
+            const contract = (position as any).contract;
+            const direction = (position as any).direction;
+            const currentSlOrderId = (position as any).current_sl_order_id;
+            
             // Get contract specification for formatting
-            const contractSpec = await getContract(position.settle, position.contract);
+            const contractSpec = await getContract(settle, contract);
             const tickSize = contractSpec.tick_size || contractSpec.order_price_round;
             const decimalPlaces = tickSize.includes('.') ? tickSize.split('.')[1].length : 0;
             const formattedPrice = newSlPrice.toFixed(decimalPlaces);
@@ -630,12 +695,12 @@ export class DynamicPositionMonitor {
             // Cancel old SL order
             try {
                 await cancelPriceTriggeredOrder(
-                    position.settle,
-                    position.currentSlOrderId,
+                    settle,
+                    currentSlOrderId,
                     credentials.apiKey,
                     credentials.apiSecret
                 );
-                console.log(`[MONITOR] Cancelled old SL order ${position.currentSlOrderId}`);
+                console.log(`[MONITOR] Cancelled old SL order ${currentSlOrderId}`);
             } catch (cancelError) {
                 console.warn(`[MONITOR] Failed to cancel old SL order:`, cancelError);
             }
@@ -643,42 +708,42 @@ export class DynamicPositionMonitor {
             // Place new SL order
             const newSlPayload = {
                 initial: {
-                    contract: position.contract,
+                    contract: contract,
                     price: "0",
                     tif: "ioc",
                     reduce_only: true,
-                    auto_size: position.direction === 'long' ? "close_long" : "close_short",
+                    auto_size: direction === 'long' ? "close_long" : "close_short",
                 },
                 trigger: {
                     strategy_type: 0,
                     price_type: 0,
                     price: formattedPrice,
-                    rule: position.direction === 'long' ? 2 : 1,
+                    rule: direction === 'long' ? 2 : 1,
                     expiration: 86400
                 },
-                order_type: position.direction === 'long' ? "plan-close-long-position" : "plan-close-short-position"
+                order_type: direction === 'long' ? "plan-close-long-position" : "plan-close-short-position"
             };
 
             const newSlResult = await placePriceTriggeredOrder(
-                position.settle,
+                settle,
                 newSlPayload,
                 credentials.apiKey,
                 credentials.apiSecret
             );
 
-            // Update position state with new SL
+            // Update position state with new SL order ID
             this.db.prepare(`
                 UPDATE position_states 
                 SET current_sl_order_id = ?,
                     current_sl_price = ?,
                     last_updated = ?
                 WHERE id = ?
-            `).run(newSlResult.id, newSlPrice, new Date().toISOString(), position.id);
+            `).run(newSlResult.id, newSlPrice, new Date().toISOString(), (position as any).id);
 
-            console.log(`[MONITOR] ✅ Updated SL for ${position.contract}: ${position.currentSlPrice} → ${newSlPrice} (${reason})`);
+            console.log(`[MONITOR] ✅ Updated SL to ${formattedPrice} (${reason}), new order ID: ${newSlResult.id}`);
 
         } catch (error) {
-            console.error(`[MONITOR] Failed to update SL for ${position.contract}:`, error);
+            console.error(`[MONITOR] Failed to update SL for ${(position as any).contract}:`, error);
             throw error;
         }
     }
