@@ -15,7 +15,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { 
     placeFuturesOrder, 
-    placeBatchPriceTriggeredOrders, 
+    placePriceTriggeredOrder, 
     listPriceTriggeredOrders, 
     cancelPriceTriggeredOrder,
     getContract,
@@ -162,7 +162,7 @@ const placeTradeStrategyFlow = ai.defineFlow(
         rule: isLong ? 1 : 2, // >= for long TP, <= for short TP
       },
     };
-    const takeProfitOrderResult = await placeBatchPriceTriggeredOrders(settle, tpPayload, apiKey, apiSecret);
+    const takeProfitOrderResult = await placePriceTriggeredOrder(settle, tpPayload, apiKey, apiSecret);
 
     // 7. Place Stop-Loss Order
     const slPayload = {
@@ -180,7 +180,7 @@ const placeTradeStrategyFlow = ai.defineFlow(
         rule: isLong ? 2 : 1, // <= for long SL, >= for short SL
       },
     };
-    const stopLossOrderResult = await placeBatchPriceTriggeredOrders(settle, slPayload, apiKey, apiSecret);
+    const stopLossOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
 
     return {
         entry_order_id: entryOrderResult.id,
@@ -447,21 +447,13 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
             };
 
             const conditionalOrders = [tpPayload, slPayload];
-            console.log(`[SINGLE-TP] Placing batch orders for TP and SL`);
-            const batchResult = await placeBatchPriceTriggeredOrders(settle, conditionalOrders, apiKey, apiSecret);
-
-            if (!Array.isArray(batchResult) || batchResult.length !== 2) {
-                console.error("[SINGLE-TP] Batch order placement failed or returned unexpected result:", batchResult);
-                throw new Error('Batch order placement for single strategy failed.');
-            }
-
-            const tpOrderResult = batchResult.find(o => o.trigger.price === formattedTakeProfit);
-            const slOrderResult = batchResult.find(o => o.trigger.price === formattedStopLoss);
-
-            if (!tpOrderResult || !slOrderResult) {
-                console.error("[SINGLE-TP] Could not find TP or SL order in batch response:", batchResult);
-                throw new Error('Failed to map batch order results for single strategy.');
-            }
+            console.log(`[SINGLE-TP] Placing TP and SL orders sequentially`);
+            
+            const tpOrderResult = await placePriceTriggeredOrder(settle, tpPayload, apiKey, apiSecret);
+            console.log(`[SINGLE-TP] TP order placed successfully: ${tpOrderResult.id}`);
+            
+            const slOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
+            console.log(`[SINGLE-TP] SL order placed successfully: ${slOrderResult.id}`);
 
             return {
                 entry_order_id: entryOrderResult.id,
@@ -543,33 +535,53 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
             };
 
             const conditionalOrders = [tp1Payload, tp2Payload, slPayload];
-            console.log(`[MULTI-TP] Placing batch of ${conditionalOrders.length} conditional orders for ${market}`);
-            const batchResult = await placeBatchPriceTriggeredOrders(settle, conditionalOrders, apiKey, apiSecret);
-
-            if (!Array.isArray(batchResult) || batchResult.length !== 3) {
-                console.error("[MULTI-TP] Batch order placement failed or returned unexpected result:", batchResult);
-                throw new Error('Batch order placement for multi-tp strategy failed.');
+            console.log(`[MULTI-TP] Placing ${conditionalOrders.length} conditional orders sequentially for ${market}`);
+            
+            // Place orders with error handling and rollback capability
+            const placedOrders: any[] = [];
+            
+            try {
+                // TP1 Order
+                console.log(`[MULTI-TP] Placing TP1 order: ${orderSizes.tp1Size} contracts at ${formattedTp1}`);
+                const tp1OrderResult = await placePriceTriggeredOrder(settle, tp1Payload, apiKey, apiSecret);
+                placedOrders.push(tp1OrderResult);
+                
+                // TP2 Order
+                console.log(`[MULTI-TP] Placing TP2 order: ${orderSizes.tp2Size} contracts at ${formattedTp2}`);
+                const tp2OrderResult = await placePriceTriggeredOrder(settle, tp2Payload, apiKey, apiSecret);
+                placedOrders.push(tp2OrderResult);
+                
+                // SL Order
+                console.log(`[MULTI-TP] Placing SL order: full remaining position at ${formattedSl}`);
+                const slOrderResult = await placePriceTriggeredOrder(settle, slPayload, apiKey, apiSecret);
+                placedOrders.push(slOrderResult);
+                
+                return {
+                    entry_order_id: entryOrderResult.id,
+                    tp1_order_id: tp1OrderResult.id,
+                    tp2_order_id: tp2OrderResult.id,
+                    stop_loss_order_id: slOrderResult.id,
+                    message: `Multi-TP strategy executed successfully for ${market}. Entry: ${entryOrderResult.id}, TP1: ${tp1OrderResult.id}, TP2: ${tp2OrderResult.id}, SL: ${slOrderResult.id}`,
+                    strategyType: 'multi-tp' as const,
+                    orderSizes,
+                    targetPrices: priceLevels
+                };
+                
+            } catch (conditionalOrderError: any) {
+                // Rollback: Cancel any successfully placed conditional orders
+                console.error(`[MULTI-TP] Conditional order placement failed, attempting rollback for ${placedOrders.length} orders`);
+                
+                for (const order of placedOrders) {
+                    try {
+                        await cancelPriceTriggeredOrder(settle, order.id, apiKey, apiSecret);
+                        console.log(`[MULTI-TP] Rollback: Cancelled order ${order.id}`);
+                    } catch (rollbackError) {
+                        console.error(`[MULTI-TP] Rollback failed for order ${order.id}:`, rollbackError);
+                    }
+                }
+                
+                throw new Error(`Multi-TP conditional orders failed: ${conditionalOrderError.message || conditionalOrderError.toString()}. Rolled back ${placedOrders.length} orders.`);
             }
-
-            const tp1OrderResult = batchResult.find(o => o.trigger.price === formattedTp1);
-            const tp2OrderResult = batchResult.find(o => o.trigger.price === formattedTp2);
-            const slOrderResult = batchResult.find(o => o.trigger.price === formattedSl);
-
-            if (!tp1OrderResult || !tp2OrderResult || !slOrderResult) {
-                console.error("[MULTI-TP] Could not map all orders in batch response:", batchResult);
-                throw new Error('Failed to map batch order results for multi-tp strategy.');
-            }
-
-            return {
-                entry_order_id: entryOrderResult.id,
-                tp1_order_id: tp1OrderResult.id,
-                tp2_order_id: tp2OrderResult.id,
-                stop_loss_order_id: slOrderResult.id,
-                message: `Multi-TP strategy executed successfully via batch for ${market}. Entry: ${entryOrderResult.id}, TP1: ${tp1OrderResult.id}, TP2: ${tp2OrderResult.id}, SL: ${slOrderResult.id}`,
-                strategyType: 'multi-tp' as const,
-                orderSizes,
-                targetPrices: priceLevels
-            };
         }
     }
 );
