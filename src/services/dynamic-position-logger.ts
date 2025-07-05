@@ -1,5 +1,5 @@
 // Enhanced logging service for dynamic position management
-// Logs to both database and /tmp/logs files
+// Logs to both database and /tmp/logs files (cross-platform)
 
 import fs from 'fs';
 import path from 'path';
@@ -10,7 +10,13 @@ class DynamicPositionLogger {
     private currentLogFile: string;
 
     constructor() {
-        this.logDir = '/tmp/logs';
+        // Cross-platform log directory
+        if (process.platform === 'win32') {
+            this.logDir = 'C:\\tmp\\logs';
+        } else {
+            // Ubuntu/Linux server
+            this.logDir = '/tmp/logs';
+        }
         this.ensureLogDirectory();
         this.currentLogFile = this.getCurrentLogFile();
     }
@@ -310,6 +316,29 @@ class DynamicPositionLogger {
     }
 
     /**
+     * General info logging
+     */
+    public logInfo(message: string, data?: any): void {
+        this.writeToFile(this.formatLogEntry('INFO', 'MONITOR', message, data));
+        console.log(message);
+    }
+
+    /**
+     * General error logging
+     */
+    public logError(message: string, data?: any): void {
+        this.writeToFile(this.formatLogEntry('ERROR', 'MONITOR', message, data));
+        console.error(message);
+    }
+
+    /**
+     * Get current log directory path
+     */
+    public getCurrentLogDirectory(): string {
+        return this.logDir;
+    }
+
+    /**
      * Get current log file path
      */
     public getCurrentLogFilePath(): string {
@@ -339,6 +368,6 @@ export function initializeDynamicPositionLogging(): void {
     const logger = getDynamicPositionLogger();
     logger.logServiceStatus('monitor', 'initialized', {
         logFile: logger.getCurrentLogFilePath(),
-        logDirectory: '/tmp/logs'
+        logDirectory: logger.getCurrentLogDirectory()
     });
 }
