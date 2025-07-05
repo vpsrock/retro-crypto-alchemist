@@ -209,8 +209,22 @@ class SchedulerService {
         // Get API keys for fetching positions
         const apiKeys = await this.getApiKeysFromDatabase();
         if (!await this.validateApiKeys(apiKeys.gateIoKey, apiKeys.gateIoSecret)) {
-          schedulerLogger.log('WARN', 'ANALYSIS', 'Skipping position filtering: Invalid Gate.io API keys', { jobId: job.id });
-          console.warn('Skipping position filtering: Invalid Gate.io API keys.');
+          schedulerLogger.log('WARN', 'ANALYSIS', 'Invalid Gate.io API keys - applying permanent exclusions only', { jobId: job.id });
+          console.warn('Invalid Gate.io API keys - applying permanent exclusions only');
+          
+          // Apply permanent exclusions even without API access
+          const permanentExclusions = ['PEPE_USDT', 'SOL_USDT'];
+          const permanentlyExcluded = allDiscoveredContracts.filter(c => permanentExclusions.includes(c.contract));
+          filteredContracts = allDiscoveredContracts.filter(c => !permanentExclusions.includes(c.contract));
+          
+          if (permanentlyExcluded.length > 0) {
+            schedulerLogger.log('INFO', 'ANALYSIS', `Applied permanent exclusions without API access`, {
+              excludedContracts: permanentlyExcluded.map(c => c.contract),
+              remainingContracts: filteredContracts.length
+            });
+            console.log(`Permanently excluded ${permanentlyExcluded.length} contracts: [${permanentlyExcluded.map(c => c.contract).join(', ')}]`);
+            console.log(`Remaining ${filteredContracts.length} contracts for analysis`);
+          }
         } else {
           // Fetch open positions from Gate.io for both USDT and BTC settle markets
           const [usdtPositions, btcPositions] = await Promise.all([
@@ -231,21 +245,42 @@ class SchedulerService {
           const allOpenPositions = allPositions.filter(pos => parseFloat(pos.size) !== 0);
           const openContracts = new Set(allOpenPositions.map(pos => pos.contract));
 
+          // PERMANENT EXCLUSIONS: Always exclude these contracts from analysis
+          const permanentExclusions = ['PEPE_USDT', 'SOL_USDT'];
+          permanentExclusions.forEach(contract => openContracts.add(contract));
+
           schedulerLogger.log('INFO', 'ANALYSIS', `Found ${allOpenPositions.length} open positions out of ${allPositions.length} total positions on Gate.io`, {
             openContracts: Array.from(openContracts),
+            permanentExclusions: permanentExclusions
           });
 
           const contractsToExclude = allDiscoveredContracts.filter(c => openContracts.has(c.contract));
           filteredContracts = allDiscoveredContracts.filter(c => !openContracts.has(c.contract));
 
+          // Separate reporting for transparency
+          const positionBasedExclusions = contractsToExclude.filter(c => 
+            allOpenPositions.some(pos => pos.contract === c.contract)
+          );
+          const permanentlyExcluded = contractsToExclude.filter(c => 
+            permanentExclusions.includes(c.contract)
+          );
+
           if (contractsToExclude.length > 0) {
-            schedulerLogger.log('INFO', 'ANALYSIS', `Excluded ${contractsToExclude.length} contracts with open positions`, {
+            schedulerLogger.log('INFO', 'ANALYSIS', `Excluded ${contractsToExclude.length} contracts total`, {
               excludedContracts: contractsToExclude.map(c => c.contract),
+              positionBasedExclusions: positionBasedExclusions.map(c => c.contract),
+              permanentExclusions: permanentlyExcluded.map(c => c.contract),
               remainingContracts: filteredContracts.length,
               tokensSaved: `~${contractsToExclude.length * 4000} tokens (estimated)`
             });
             
-            console.log(`Excluded ${contractsToExclude.length} contracts with open positions: [${contractsToExclude.map(c => c.contract).join(', ')}]`);
+            console.log(`Excluded ${contractsToExclude.length} contracts: [${contractsToExclude.map(c => c.contract).join(', ')}]`);
+            if (permanentlyExcluded.length > 0) {
+              console.log(`  - Permanently excluded: [${permanentlyExcluded.map(c => c.contract).join(', ')}]`);
+            }
+            if (positionBasedExclusions.length > 0) {
+              console.log(`  - Excluded due to open positions: [${positionBasedExclusions.map(c => c.contract).join(', ')}]`);
+            }
             console.log(`Remaining ${filteredContracts.length} contracts for analysis (saved ~${contractsToExclude.length * 4000} AI tokens)`);
           } else {
             schedulerLogger.log('INFO', 'ANALYSIS', 'No contracts excluded - no open positions found for discovered contracts');
@@ -253,14 +288,29 @@ class SchedulerService {
           }
         }
       } catch (filterError) {
-        // Log error but don't fail the entire job - proceed with all discovered contracts
-        schedulerLogger.log('ERROR', 'ANALYSIS', 'Failed to fetch open positions for filtering, proceeding with all contracts', {
+        // Log error but don't fail the entire job - apply permanent exclusions and proceed
+        schedulerLogger.log('ERROR', 'ANALYSIS', 'Failed to fetch open positions for filtering, applying permanent exclusions only', {
           jobId: job.id,
           totalContracts: allDiscoveredContracts.length
         }, filterError);
         
-        console.error('Error fetching open positions for filtering (proceeding with all contracts):', filterError);
-        filteredContracts = allDiscoveredContracts; // Fallback to all contracts
+        console.error('Error fetching open positions for filtering (applying permanent exclusions only):', filterError);
+        
+        // Apply permanent exclusions even when API calls fail
+        const permanentExclusions = ['PEPE_USDT', 'SOL_USDT'];
+        const permanentlyExcluded = allDiscoveredContracts.filter(c => permanentExclusions.includes(c.contract));
+        filteredContracts = allDiscoveredContracts.filter(c => !permanentExclusions.includes(c.contract));
+        
+        if (permanentlyExcluded.length > 0) {
+          schedulerLogger.log('INFO', 'ANALYSIS', `Applied permanent exclusions after API error`, {
+            excludedContracts: permanentlyExcluded.map(c => c.contract),
+            remainingContracts: filteredContracts.length
+          });
+          console.log(`Permanently excluded ${permanentlyExcluded.length} contracts: [${permanentlyExcluded.map(c => c.contract).join(', ')}]`);
+          console.log(`Remaining ${filteredContracts.length} contracts for analysis`);
+        } else {
+          filteredContracts = allDiscoveredContracts; // Fallback to all contracts if no permanent exclusions found
+        }
       }
 
       if (filteredContracts.length === 0) {
