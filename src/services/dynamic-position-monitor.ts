@@ -526,15 +526,20 @@ export class DynamicPositionMonitor {
 
     private groupPositionsByCredentials(positions: PositionState[]): { credentials: any, positions: PositionState[] }[] {
         const groups = new Map<string, PositionState[]>();
-        
         for (const position of positions) {
+            // Defensive: skip positions with missing/empty credentials
+            if (!position.apiKey || typeof position.apiKey !== 'string' || !position.apiKey.trim() ||
+                !position.apiSecret || typeof position.apiSecret !== 'string' || !position.apiSecret.trim()) {
+                // Log warning once per position
+                console.warn(`[MONITOR] Skipping position ${position.id} (${position.contract}) due to missing API credentials.`);
+                continue;
+            }
             const key = `${position.settle}_${position.apiKey}`;
             if (!groups.has(key)) {
                 groups.set(key, []);
             }
             groups.get(key)!.push(position);
         }
-
         return Array.from(groups.entries()).map(([key, positions]) => ({
             credentials: {
                 apiKey: positions[0].apiKey,

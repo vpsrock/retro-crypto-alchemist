@@ -712,9 +712,14 @@ function savePositionState(
     apiSecret: string,
     settle: 'usdt' | 'btc'
 ): void {
+    if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
+        throw new Error(`[DYNAMIC-DB] apiKey is missing or empty for position ${positionId} (${contract})`);
+    }
+    if (!apiSecret || typeof apiSecret !== 'string' || !apiSecret.trim()) {
+        throw new Error(`[DYNAMIC-DB] apiSecret is missing or empty for position ${positionId} (${contract})`);
+    }
     try {
         const db = getDynamicPositionDB();
-        
         // Use transaction for atomic operation
         const saveTransaction = db.transaction(() => {
             const stmt = db.prepare(`
@@ -727,9 +732,7 @@ function savePositionState(
                     created_at, last_updated, api_key, api_secret, settle
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
-            
             const now = new Date().toISOString();
-            
             return stmt.run(
                 positionId,
                 contract,
@@ -758,15 +761,12 @@ function savePositionState(
                 settle
             );
         });
-        
         const result = saveTransaction();
-        
         if (result.changes > 0) {
             console.log(`[DYNAMIC-DB] ✅ Saved position state for ${contract} (${positionId})`);
         } else {
             throw new Error(`Failed to insert position state - no rows affected`);
         }
-        
     } catch (error) {
         console.error(`[DYNAMIC-DB] ❌ Failed to save position state for ${contract}:`, error);
         throw new Error(`Database save failed for position ${positionId}: ${error instanceof Error ? error.message : String(error)}`);
