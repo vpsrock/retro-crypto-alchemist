@@ -696,14 +696,18 @@ export class DynamicPositionMonitor {
     private groupPositionsByCredentials(positions: PositionState[]): { credentials: any, positions: PositionState[] }[] {
         const groups = new Map<string, PositionState[]>();
         for (const position of positions) {
+            // Access database columns using snake_case (as returned by SQLite)
+            const apiKey = (position as any).api_key;
+            const apiSecret = (position as any).api_secret;
+            
             // Defensive: skip positions with missing/empty credentials
-            if (!position.apiKey || typeof position.apiKey !== 'string' || !position.apiKey.trim() ||
-                !position.apiSecret || typeof position.apiSecret !== 'string' || !position.apiSecret.trim()) {
+            if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim() ||
+                !apiSecret || typeof apiSecret !== 'string' || !apiSecret.trim()) {
                 // Log warning once per position
                 console.warn(`[MONITOR] Skipping position ${position.id} (${position.contract}) due to missing API credentials.`);
                 continue;
             }
-            const key = `${position.settle}_${position.apiKey}`;
+            const key = `${position.settle}_${apiKey}`;
             if (!groups.has(key)) {
                 groups.set(key, []);
             }
@@ -711,8 +715,8 @@ export class DynamicPositionMonitor {
         }
         return Array.from(groups.entries()).map(([key, positions]) => ({
             credentials: {
-                apiKey: positions[0].apiKey,
-                apiSecret: positions[0].apiSecret
+                apiKey: (positions[0] as any).api_key,
+                apiSecret: (positions[0] as any).api_secret
             },
             positions
         }));
