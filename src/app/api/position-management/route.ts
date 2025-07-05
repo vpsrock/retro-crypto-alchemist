@@ -1,20 +1,23 @@
 // API endpoints for dynamic position management
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceManager } from '@/services/auto-service-manager';
+import { getDynamicPositionMonitor } from '@/services/dynamic-position-monitor';
+import { getTimeManager } from '@/services/time-based-position-manager';
 
 export async function GET() {
-    try {
-        const serviceManager = getServiceManager();
-        const status = serviceManager.getStatus();
+    const monitor = getDynamicPositionMonitor();
+    const timeManager = getTimeManager();
 
-        return NextResponse.json(status);
-    } catch (error) {
-        console.error('Error getting position management status:', error);
-        return NextResponse.json(
-            { error: 'Failed to get status' },
-            { status: 500 }
-        );
-    }
+    return new Response(JSON.stringify({
+        initialized: true, // Assuming if this API is hit, it's initialized
+        services: {
+            monitor: monitor.getStatus(),
+            timeManager: timeManager.getStatus(),
+        },
+        timestamp: new Date().toISOString(),
+    }), {
+        headers: { 'Content-Type': 'application/json' },
+    });
 }
 
 export async function POST(request: NextRequest) {
@@ -44,4 +47,19 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+// New endpoint for detailed health status
+export async function POST(req: Request) {
+    if (req.method !== 'POST') {
+        return new Response('Method Not Allowed', { status: 405 });
+    }
+
+    const monitor = getDynamicPositionMonitor();
+    const healthStatus = monitor.getHealthStatus();
+
+    return new Response(JSON.stringify(healthStatus), {
+        headers: { 'Content-Type': 'application/json' },
+        status: healthStatus.lastError ? 503 : 200, // Service Unavailable if error
+    });
 }

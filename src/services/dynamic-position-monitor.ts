@@ -23,6 +23,8 @@ export class DynamicPositionMonitor {
     private lastOrderStates: Map<string, any> = new Map();
     private processingLock: Set<string> = new Set(); // Prevent concurrent processing
     private logger: any; // Dynamic position logger
+    private lastSuccessfulCycleTimestamp: string | null = null;
+    private lastError: { timestamp: string; message: string } | null = null;
 
     constructor() {
         // Initialize database through auto-init service
@@ -126,6 +128,9 @@ export class DynamicPositionMonitor {
 
             const duration = Date.now() - startTime;
             console.log(`[MONITOR] Cycle completed in ${duration}ms`);
+
+            // Update health status on success
+            this.lastSuccessfulCycleTimestamp = new Date().toISOString();
             
         } catch (error) {
             console.error('[MONITOR] Error in monitoring cycle:', error);
@@ -139,8 +144,8 @@ export class DynamicPositionMonitor {
      * Monitor a group of positions with same API credentials
      */
     private async monitorPositionGroup(group: { credentials: any, positions: PositionState[] }): Promise<void> {
+        const { credentials, positions } = group;
         try {
-            const { credentials, positions } = group;
             console.log(`[MONITOR] Checking ${positions.length} positions for ${positions[0]?.settle} settle`);
 
             // Get current order states from Gate.io
@@ -162,7 +167,32 @@ export class DynamicPositionMonitor {
             }
 
         } catch (error) {
-            console.error('[MONITOR] Error monitoring position group:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const apiKeySnippet = credentials.apiKey ? `${credentials.apiKey.substring(0, 4)}...` : 'N/A';
+            const errorContext = {
+                apiKeySnippet,
+                settle: positions[0]?.settle,
+                positionCount: positions.length,
+                error: errorMessage,
+            };
+
+            // Log to file and DB
+            this.logExecution(
+                'system_group_error',
+                'monitor_group_api_error',
+                errorContext,
+                0,
+                false,
+                `API call failed for group ${apiKeySnippet}`
+            );
+            
+            console.error(`[MONITOR] CRITICAL: Error monitoring position group with key ${apiKeySnippet}. Skipping ${positions.length} positions. Error:`, error);
+
+            // Update health status
+            this.lastError = {
+                timestamp: new Date().toISOString(),
+                message: `API call failed for group ${apiKeySnippet}. Error: ${errorMessage}`
+            };
         }
     }
 
@@ -602,6 +632,19 @@ export class DynamicPositionMonitor {
             activePositions: this.getActivePositions().length,
             processingLock: Array.from(this.processingLock),
             lastStates: this.lastOrderStates.size
+        };
+    }
+
+    /**
+     * Get detailed health status
+     */
+    public getHealthStatus(): any {
+        return {
+            isRunning: this.isRunning,
+            lastSuccessfulCycleTimestamp: this.lastSuccessfulCycleTimestamp,
+            lastError: this.lastError,
+            activePositions: this.getActivePositions().length,
+            config: this.config,
         };
     }
 }

@@ -89,6 +89,24 @@ export class TimeBasedPositionManager {
     }
 
     /**
+     * Get the current status of the time manager
+     */
+    public getStatus(): any {
+        let trackedPositions = 0;
+        try {
+            const result = this.db.prepare(`SELECT COUNT(*) as count FROM position_time_tracking WHERE status IN ('active', 'warned')`).get() as any;
+            trackedPositions = result?.count || 0;
+        } catch (e) {
+            // DB not ready, ignore
+        }
+        return {
+            isRunning: this.isRunning,
+            config: this.config,
+            trackedPositions,
+        };
+    }
+
+    /**
      * Perform cleanup check for all tracked positions
      */
     private async performCleanupCheck(): Promise<void> {
