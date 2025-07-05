@@ -23,8 +23,7 @@ import {
     listPositions,
 } from '@/services/gateio';
 import { getTimeManager } from '@/services/time-based-position-manager';
-import Database from 'better-sqlite3';
-import path from 'path';
+import { getAutoInitDB } from '@/services/auto-init-database';
 import { 
     PlaceTradeStrategyInputSchema, 
     PlaceTradeStrategyOutputSchema, 
@@ -680,9 +679,8 @@ export const placeTradeStrategyMultiTp = ai.defineFlow(
 /**
  * Database helper for dynamic position management
  */
-function getDynamicPositionDB(): Database.Database {
-    const dbPath = path.join(process.cwd(), 'trades.db');
-    return new Database(dbPath);
+function getDynamicPositionDB(): any {
+    return getAutoInitDB();
 }
 
 /**

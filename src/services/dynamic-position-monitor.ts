@@ -1,10 +1,10 @@
 // Dynamic position monitoring service - real-time order fill detection and SL management
 // This is the heart of the dynamic position management system
 
-import Database from 'better-sqlite3';
-import path from 'path';
+import { getAutoInitDB } from './auto-init-database';
 import { listPriceTriggeredOrders, listPositions, cancelPriceTriggeredOrder, placePriceTriggeredOrder, getContract } from '@/services/gateio';
 import { getTimeManager } from './time-based-position-manager';
+import { getDynamicPositionLogger } from './dynamic-position-logger';
 import type { PositionState, OrderFillEvent, ActionAudit } from '@/lib/dynamic-position-schemas';
 
 interface MonitoringConfig {
@@ -16,20 +16,21 @@ interface MonitoringConfig {
 }
 
 export class DynamicPositionMonitor {
-    private db: Database.Database;
+    private db: any; // Will be initialized from auto-init service
     private config: MonitoringConfig;
     private isRunning: boolean = false;
     private monitoringInterval: NodeJS.Timeout | null = null;
     private lastOrderStates: Map<string, any> = new Map();
     private processingLock: Set<string> = new Set(); // Prevent concurrent processing
+    private logger: any; // Dynamic position logger
 
     constructor() {
-        const dbPath = path.join(process.cwd(), 'trades.db');
-        this.db = new Database(dbPath);
+        // Initialize database through auto-init service
+        this.db = getAutoInitDB();
+        this.logger = getDynamicPositionLogger();
         
         // Load config from database or use defaults
         this.config = this.loadConfig();
-        this.initializeDatabase();
     }
 
     private loadConfig(): MonitoringConfig {
@@ -59,51 +60,6 @@ export class DynamicPositionMonitor {
             trailingDistance: 0.01, // 1%
             enabled: true
         };
-    }
-
-    private initializeDatabase(): void {
-        // Ensure all required tables exist
-        this.db.exec(`
-            -- Already created in other services, but ensure they exist
-            CREATE TABLE IF NOT EXISTS position_states (
-                id TEXT PRIMARY KEY,
-                contract TEXT NOT NULL,
-                direction TEXT NOT NULL,
-                size REAL NOT NULL,
-                entry_price REAL NOT NULL,
-                entry_order_id TEXT NOT NULL,
-                strategy_type TEXT NOT NULL,
-                tp1_size REAL,
-                tp2_size REAL,
-                runner_size REAL,
-                tp1_order_id TEXT,
-                tp2_order_id TEXT,
-                current_sl_order_id TEXT NOT NULL,
-                phase TEXT NOT NULL,
-                remaining_size REAL NOT NULL,
-                realized_pnl REAL DEFAULT 0,
-                original_sl_price REAL NOT NULL,
-                current_sl_price REAL NOT NULL,
-                tp1_price REAL,
-                tp2_price REAL,
-                created_at TEXT NOT NULL,
-                last_updated TEXT NOT NULL,
-                api_key TEXT NOT NULL,
-                api_secret TEXT NOT NULL,
-                settle TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS monitoring_execution_log (
-                id TEXT PRIMARY KEY,
-                position_id TEXT NOT NULL,
-                execution_type TEXT NOT NULL, -- 'fill_detected', 'sl_updated', 'error'
-                details TEXT NOT NULL, -- JSON
-                timestamp TEXT NOT NULL,
-                processing_time_ms INTEGER,
-                success INTEGER NOT NULL,
-                error_message TEXT
-            );
-        `);
     }
 
     /**
@@ -589,18 +545,13 @@ export class DynamicPositionMonitor {
     }
 
     private saveFillEvent(fillEvent: OrderFillEvent): void {
-        this.db.prepare(`
-            INSERT INTO order_fill_events 
-            (id, order_id, contract, fill_type, fill_size, fill_price, fill_time, position_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-            `fill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        // Use enhanced logger that logs to both database and file
+        this.logger.logOrderFill(
             fillEvent.orderId,
             fillEvent.contract,
             fillEvent.fillType,
             fillEvent.fillSize,
             fillEvent.fillPrice,
-            fillEvent.fillTime,
             fillEvent.positionId
         );
     }
@@ -613,21 +564,14 @@ export class DynamicPositionMonitor {
         success: boolean,
         error?: string
     ): void {
-        const id = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        this.db.prepare(`
-            INSERT INTO monitoring_execution_log 
-            (id, position_id, execution_type, details, timestamp, processing_time_ms, success, error_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-            id,
+        // Use enhanced logger that logs to both database and file
+        this.logger.logMonitoringExecution(
             positionId,
             executionType,
-            JSON.stringify(details),
-            new Date().toISOString(),
+            details,
             processingTime,
-            success ? 1 : 0,
-            error || null
+            success,
+            error
         );
     }
 

@@ -1,9 +1,9 @@
 // Time-based position management service
 // Handles automatic position cleanup and time limits
 
-import Database from 'better-sqlite3';
-import path from 'path';
 import { cancelPriceTriggeredOrder, listPositions, listPriceTriggeredOrders } from '@/services/gateio';
+import { getAutoInitDB } from './auto-init-database';
+import { getDynamicPositionLogger } from './dynamic-position-logger';
 import type { PositionState, ActionAudit } from '@/lib/dynamic-position-schemas';
 
 interface TimeBasedConfig {
@@ -14,10 +14,11 @@ interface TimeBasedConfig {
 }
 
 export class TimeBasedPositionManager {
-    private db: Database.Database;
+    private db: any;
     private config: TimeBasedConfig;
     private isRunning: boolean = false;
     private cleanupInterval: NodeJS.Timeout | null = null;
+    private logger: any;
 
     constructor(config: TimeBasedConfig = {
         maxPositionAgeHours: 4,
@@ -25,36 +26,9 @@ export class TimeBasedPositionManager {
         forceCloseBeforeExpiry: true,
         warningBeforeExpiryMinutes: 30
     }) {
-        const dbPath = path.join(process.cwd(), 'trades.db');
-        this.db = new Database(dbPath);
+        this.db = getAutoInitDB();
         this.config = config;
-        this.initializeDatabase();
-    }
-
-    private initializeDatabase() {
-        // Ensure tables exist
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS position_time_tracking (
-                position_id TEXT PRIMARY KEY,
-                contract TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                expires_at TEXT NOT NULL,
-                warning_sent INTEGER DEFAULT 0,
-                force_close_attempted INTEGER DEFAULT 0,
-                status TEXT DEFAULT 'active' CHECK (status IN ('active', 'warned', 'expired', 'force_closed')),
-                FOREIGN KEY (position_id) REFERENCES position_states(id)
-            );
-
-            CREATE TABLE IF NOT EXISTS time_cleanup_log (
-                id TEXT PRIMARY KEY,
-                position_id TEXT NOT NULL,
-                action TEXT NOT NULL,
-                timestamp TEXT NOT NULL,
-                success INTEGER NOT NULL,
-                details TEXT, -- JSON
-                error TEXT
-            );
-        `);
+        this.logger = getDynamicPositionLogger();
     }
 
     /**
@@ -344,21 +318,8 @@ export class TimeBasedPositionManager {
      * Log action to audit trail
      */
     private logAction(positionId: string, action: string, success: boolean, details: any, error?: string): void {
-        const id = `time_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        this.db.prepare(`
-            INSERT INTO time_cleanup_log 
-            (id, position_id, action, timestamp, success, details, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(
-            id,
-            positionId,
-            action,
-            new Date().toISOString(),
-            success ? 1 : 0,
-            JSON.stringify(details),
-            error || null
-        );
+        // Use enhanced logger that logs to both database and file
+        this.logger.logTimeManagement(positionId, action, success, details, error);
     }
 
     /**

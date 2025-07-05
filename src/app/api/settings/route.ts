@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDatabase, getAllSettings, saveSetting, getApiKeys, saveApiKeys, getAiModels, saveAiModels, getPrompts, savePrompts, getDiscoveryDefaults, saveDiscoveryDefaults } from '@/services/database';
+import '@/lib/server-init'; // Import to trigger auto-initialization
 
 export async function GET() {
   try {
