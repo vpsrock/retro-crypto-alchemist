@@ -115,12 +115,19 @@ export class DynamicPositionMonitor {
         try {
             console.log('[MONITOR] Starting monitoring cycle...');
             
-            // Get all active positions
+            // Get all active positions from database
             const activePositions = this.getActivePositions();
-            console.log(`[MONITOR] Found ${activePositions.length} active positions`);
+            console.log(`[MONITOR] Found ${activePositions.length} active positions in database`);
+
+            // First, reconcile positions with exchange to clean up stale data
+            await this.reconcilePositions(activePositions);
+
+            // Get updated active positions after reconciliation
+            const reconciledPositions = this.getActivePositions();
+            console.log(`[MONITOR] After reconciliation: ${reconciledPositions.length} truly active positions`);
 
             // Group by API credentials to batch requests
-            const positionGroups = this.groupPositionsByCredentials(activePositions);
+            const positionGroups = this.groupPositionsByCredentials(reconciledPositions);
             
             for (const group of positionGroups) {
                 await this.monitorPositionGroup(group);
@@ -137,6 +144,85 @@ export class DynamicPositionMonitor {
             this.logExecution('system', 'monitoring_cycle_error', {
                 error: error instanceof Error ? error.message : String(error)
             }, Date.now() - startTime, false, String(error));
+        }
+    }
+
+    /**
+     * Reconcile database positions with actual exchange positions
+     * Mark positions as completed if they no longer exist on exchange
+     */
+    private async reconcilePositions(dbPositions: PositionState[]): Promise<void> {
+        try {
+            // Group positions by credentials for efficient API calls
+            const positionGroups = this.groupPositionsByCredentials(dbPositions);
+            
+            for (const group of positionGroups) {
+                await this.reconcilePositionGroup(group);
+            }
+        } catch (error) {
+            console.error('[MONITOR] Error during position reconciliation:', error);
+            // Don't throw - allow monitoring to continue even if reconciliation fails
+        }
+    }
+
+    /**
+     * Reconcile a group of positions with same credentials
+     */
+    private async reconcilePositionGroup(group: { credentials: any, positions: PositionState[] }): Promise<void> {
+        try {
+            const { credentials, positions } = group;
+            
+            // Get actual POSITIONS from exchange (not orders)
+            const exchangePositions = await listPositions(
+                positions[0].settle,
+                credentials.apiKey,
+                credentials.apiSecret
+            );
+
+            // Create a set of contracts that have active positions on exchange
+            const activeContracts = new Set(
+                exchangePositions
+                    .filter((pos: any) => pos.size && Math.abs(parseFloat(pos.size)) > 0)
+                    .map((pos: any) => pos.contract)
+            );
+
+            console.log(`[MONITOR] 🔍 Exchange has active positions for: ${Array.from(activeContracts).join(', ')}`);
+
+            // Check each position in our database
+            for (const position of positions) {
+                if (!activeContracts.has(position.contract)) {
+                    // Position no longer exists on exchange - mark as completed
+                    this.markPositionCompleted(position, 'position_closed_on_exchange');
+                    console.log(`[MONITOR] 🧹 Marked stale position ${position.contract} (${position.id}) as completed - position closed on exchange`);
+                }
+            }
+        } catch (error) {
+            console.error(`[MONITOR] Error reconciling position group:`, error);
+            // Log but don't throw - allow other groups to be processed
+        }
+    }
+
+    /**
+     * Mark a position as completed in the database
+     */
+    private markPositionCompleted(position: PositionState, reason: string): void {
+        try {
+            this.db.prepare(`
+                UPDATE position_states 
+                SET phase = 'completed',
+                    last_updated = ?
+                WHERE id = ?
+            `).run(new Date().toISOString(), position.id);
+
+            // Log the cleanup action
+            this.logExecution(position.id, 'position_auto_completed', {
+                contract: position.contract,
+                reason: reason,
+                originalPhase: position.phase
+            }, 0, true);
+
+        } catch (error) {
+            console.error(`[MONITOR] Failed to mark position ${position.id} as completed:`, error);
         }
     }
 
