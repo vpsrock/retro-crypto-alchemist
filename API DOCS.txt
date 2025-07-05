@@ -1,0 +1,4070 @@
+List all futures contracts
+
+GET /futures/{settle}/contracts
+
+List all futures contracts
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Contract]
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/contracts'
+query_param = ''
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "name": "BTC_USDT",
+    "type": "direct",
+    "quanto_multiplier": "0.0001",
+    "ref_discount_rate": "0",
+    "order_price_deviate": "0.5",
+    "maintenance_rate": "0.005",
+    "mark_type": "index",
+    "last_price": "38026",
+    "mark_price": "37985.6",
+    "index_price": "37954.92",
+    "funding_rate_indicative": "0.000219",
+    "mark_price_round": "0.01",
+    "funding_offset": 0,
+    "in_delisting": false,
+    "risk_limit_base": "1000000",
+    "interest_rate": "0.0003",
+    "order_price_round": "0.1",
+    "order_size_min": 1,
+    "ref_rebate_rate": "0.2",
+    "funding_interval": 28800,
+    "risk_limit_step": "1000000",
+    "leverage_min": "1",
+    "leverage_max": "100",
+    "risk_limit_max": "8000000",
+    "maker_fee_rate": "-0.00025",
+    "taker_fee_rate": "0.00075",
+    "funding_rate": "0.002053",
+    "order_size_max": 1000000,
+    "funding_next_apply": 1610035200,
+    "short_users": 977,
+    "config_change_time": 1609899548,
+    "trade_size": 28530850594,
+    "position_size": 5223816,
+    "long_users": 455,
+    "funding_impact_value": "60000",
+    "orders_limit": 50,
+    "trade_id": 10851092,
+    "orderbook_id": 2129638396,
+    "enable_bonus": true,
+    "enable_credit": true,
+    "create_time": 1669688556,
+    "funding_cap_ratio": "0.75",
+    "status": "trading",
+    "launch_time": 1609899548
+  }
+]
+#Get a single contract
+
+GET /futures/{settle}/contracts/{contract}
+
+Get a single contract
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	path	string	true	Futures contract
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Contract information	Contract
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/contracts/BTC_USDT'
+query_param = ''
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "name": "BTC_USDT",
+  "type": "direct",
+  "quanto_multiplier": "0.0001",
+  "ref_discount_rate": "0",
+  "order_price_deviate": "0.5",
+  "maintenance_rate": "0.005",
+  "mark_type": "index",
+  "last_price": "38026",
+  "mark_price": "37985.6",
+  "index_price": "37954.92",
+  "funding_rate_indicative": "0.000219",
+  "mark_price_round": "0.01",
+  "funding_offset": 0,
+  "in_delisting": false,
+  "risk_limit_base": "1000000",
+  "interest_rate": "0.0003",
+  "order_price_round": "0.1",
+  "order_size_min": 1,
+  "ref_rebate_rate": "0.2",
+  "funding_interval": 28800,
+  "risk_limit_step": "1000000",
+  "leverage_min": "1",
+  "leverage_max": "100",
+  "risk_limit_max": "8000000",
+  "maker_fee_rate": "-0.00025",
+  "taker_fee_rate": "0.00075",
+  "funding_rate": "0.002053",
+  "order_size_max": 1000000,
+  "funding_next_apply": 1610035200,
+  "short_users": 977,
+  "config_change_time": 1609899548,
+  "trade_size": 28530850594,
+  "position_size": 5223816,
+  "long_users": 455,
+  "funding_impact_value": "60000",
+  "orders_limit": 50,
+  "trade_id": 10851092,
+  "orderbook_id": 2129638396,
+  "enable_bonus": true,
+  "enable_credit": true,
+  "create_time": 1669688556,
+  "funding_cap_ratio": "0.75",
+  "status": "trading",
+  "launch_time": 1609899548
+}
+#Futures order book
+
+GET /futures/{settle}/order_book
+
+Futures order book
+
+Bids will be sorted by price from high to low, while asks sorted reversely
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	true	Futures contract
+interval	query	string	false	Order depth. 0 means no aggregation is applied. default to 0
+limit	query	integer	false	Maximum number of order depth data in asks or bids
+with_id	query	boolean	false	Whether the order book update ID will be returned. This ID increases by 1 on every order book update
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Order book retrieved	Inline
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» id	integer(int64)	Order Book ID. Increases by 1 on every order book change. Set with_id=true to include this field in response
+» current	number(double)	Response data generation timestamp
+» update	number(double)	Order book changed timestamp
+» asks	array	Asks order depth
+»» futures_order_book_item	object	none
+»»» p	string	Price (quote currency)
+»»» s	integer(int64)	Size
+»» bids	array	Bids order depth
+»»» futures_order_book_item	object	none
+»»»» p	string	Price (quote currency)
+»»»» s	integer(int64)	Size
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/order_book'
+query_param = 'contract=BTC_USDT'
+r = requests.request('GET', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "id": 123456,
+  "current": 1623898993.123,
+  "update": 1623898993.121,
+  "asks": [
+    {
+      "p": "1.52",
+      "s": 100
+    },
+    {
+      "p": "1.53",
+      "s": 40
+    }
+  ],
+  "bids": [
+    {
+      "p": "1.17",
+      "s": 150
+    },
+    {
+      "p": "1.16",
+      "s": 203
+    }
+  ]
+}
+#Futures trading history
+
+GET /futures/{settle}/trades
+
+Futures trading history
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	true	Futures contract
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+last_id	query	string	false	Specify the starting point for this list based on a previously retrieved id
+from	query	integer(int64)	false	Specify starting time in Unix seconds. If not specified, to and limit will be used to limit response items.
+to	query	integer(int64)	false	Specify end time in Unix seconds, default to current time
+#Detailed descriptions
+last_id: Specify the starting point for this list based on a previously retrieved id
+
+This parameter is deprecated. Use from and to instead to limit time range
+
+from: Specify starting time in Unix seconds. If not specified, to and limit will be used to limit response items. If items between from and to are more than limit, only limit number will be returned.
+
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+None	array	none
+» id	integer(int64)	Trade ID
+» create_time	number(double)	Trading time
+» create_time_ms	number(double)	Trading time, with milliseconds set to 3 decimal places.
+» contract	string	Futures contract
+» size	integer(int64)	Trading size
+» price	string	Trading price (quote currency)
+» is_internal	boolean	Whether internal trade. Internal trade refers to the takeover of liquidation orders by the insurance fund and ADL users. Since it is not a normal matching on the market depth, the transaction price may deviate, and it will not be recorded in the K-line. If it is not an internal trade, this field will not be returned.
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/trades'
+query_param = 'contract=BTC_USDT'
+r = requests.request('GET', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "id": 121234231,
+    "create_time": 1514764800,
+    "contract": "BTC_USDT",
+    "size": -100,
+    "price": "100.123"
+  }
+]
+#Get futures candlesticks
+
+GET /futures/{settle}/candlesticks
+
+Get futures candlesticks
+
+Return specified contract candlesticks. If prefix contract with mark_, the contract's mark price candlesticks are returned; if prefix with index_, index price candlesticks will be returned.
+
+Maximum of 2000 points are returned in one query. Be sure not to exceed the limit when specifying from, to and interval
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	true	Futures contract
+from	query	integer(int64)	false	Start time of candlesticks, formatted in Unix timestamp in seconds. Default toto - 100 * interval if not specified
+to	query	integer(int64)	false	End time of candlesticks, formatted in Unix timestamp in seconds. Default to current time
+limit	query	integer	false	Maximum recent data points to return. limit is conflicted with from and to. If either from or to is specified, request will be rejected.
+interval	query	string	false	Interval time between data points. Note that 1w means natual week(Mon-Sun), while 7d means every 7d since unix 0. Note that 30d means 1 natual month, not 30 days
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+None	array	[data point in every timestamp]
+» None	object	data point in every timestamp
+»» t	number(double)	Unix timestamp in seconds
+»» v	integer(int64)	size volume (contract size). Only returned if contract is not prefixed
+»» c	string	Close price (quote currency)
+»» h	string	Highest price (quote currency)
+»» l	string	Lowest price (quote currency)
+»» o	string	Open price (quote currency)
+»» sum	string	Trading volume (unit: Quote currency)
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/candlesticks'
+query_param = 'contract=BTC_USDT'
+r = requests.request('GET', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "t": 1539852480,
+    "v": 97151,
+    "c": "1.032",
+    "h": "1.032",
+    "l": "1.032",
+    "o": "1.032",
+    "sum": "3580"
+  }
+]
+#Premium Index K-Line
+
+GET /futures/{settle}/premium_index
+
+Premium Index K-Line
+
+Maximum of 1000 points can be returned in a query. Be sure not to exceed the limit when specifying from, to and interval
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	true	Futures contract
+from	query	integer(int64)	false	Start time of candlesticks, formatted in Unix timestamp in seconds. Default toto - 100 * interval if not specified
+to	query	integer(int64)	false	End time of candlesticks, formatted in Unix timestamp in seconds. Default to current time
+limit	query	integer	false	Maximum recent data points to return. limit is conflicted with from and to. If either from or to is specified, request will be rejected.
+interval	query	string	false	Interval time between data points
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» None	object	data point in every timestamp
+»» t	number(double)	Unix timestamp in seconds
+»» c	string	Close price
+»» h	string	Highest price
+»» l	string	Lowest price`
+»» o	string	Open price
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/premium_index'
+query_param = 'contract=BTC_USDT'
+r = requests.request('GET', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "t": 1539852480,
+    "c": "0",
+    "h": "0.00023",
+    "l": "0",
+    "o": "0"
+  }
+]
+#List futures tickers
+
+GET /futures/{settle}/tickers
+
+List futures tickers
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» contract	string	Futures contract
+» last	string	Last trading price
+» change_percentage	string	Change percentage.
+» total_size	string	Contract total size
+» low_24h	string	Lowest trading price in recent 24h
+» high_24h	string	Highest trading price in recent 24h
+» volume_24h	string	Trade size in recent 24h
+» volume_24h_btc	string	Trade volumes in recent 24h in BTC(deprecated, use volume_24h_base, volume_24h_quote, volume_24h_settle instead)
+» volume_24h_usd	string	Trade volumes in recent 24h in USD(deprecated, use volume_24h_base, volume_24h_quote, volume_24h_settle instead)
+» volume_24h_base	string	Trade volume in recent 24h, in base currency
+» volume_24h_quote	string	Trade volume in recent 24h, in quote currency
+» volume_24h_settle	string	Trade volume in recent 24h, in settle currency
+» mark_price	string	Recent mark price
+» funding_rate	string	Funding rate
+» funding_rate_indicative	string	Indicative Funding rate in next period. (deprecated. use funding_rate)
+» index_price	string	Index price
+» quanto_base_rate	string	Exchange rate of base currency and settlement currency in Quanto contract. Does not exists in contracts of other types
+» lowest_ask	string	Recent lowest ask
+» lowest_size	string	The latest seller's lowest price order quantity
+» highest_bid	string	Recent highest bid
+» highest_size	string	The latest buyer's highest price order volume
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/tickers'
+query_param = ''
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "contract": "BTC_USDT",
+    "last": "6432",
+    "low_24h": "6278",
+    "high_24h": "6790",
+    "change_percentage": "4.43",
+    "total_size": "32323904",
+    "volume_24h": "184040233284",
+    "volume_24h_btc": "28613220",
+    "volume_24h_usd": "184040233284",
+    "volume_24h_base": "28613220",
+    "volume_24h_quote": "184040233284",
+    "volume_24h_settle": "28613220",
+    "mark_price": "6534",
+    "funding_rate": "0.0001",
+    "funding_rate_indicative": "0.0001",
+    "index_price": "6531",
+    "highest_bid": "34089.7",
+    "highest_size": "100",
+    "lowest_ask": "34217.9",
+    "lowest_size": "1000"
+  }
+]
+#Funding rate history
+
+GET /futures/{settle}/funding_rate
+
+Funding rate history
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	true	Futures contract
+limit	query	integer	false	Maximum number of records to be returned in a single list
+from	query	integer(int64)	false	Start timestamp
+to	query	integer(int64)	false	End timestamp
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	History retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» t	integer(int64)	Unix timestamp in seconds
+» r	string	Funding rate
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/funding_rate'
+query_param = 'contract=BTC_USDT'
+r = requests.request('GET', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "t": 1543968000,
+    "r": "0.000157"
+  }
+]
+#Futures insurance balance history
+
+GET /futures/{settle}/insurance
+
+Futures insurance balance history
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+limit	query	integer	false	Maximum number of records to be returned in a single list
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+None	array	none
+» t	integer(int64)	Unix timestamp in seconds
+» b	string	Insurance balance
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/insurance'
+query_param = ''
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "t": 1543968000,
+    "b": "83.0031"
+  }
+]
+#Futures stats
+
+GET /futures/{settle}/contract_stats
+
+Futures stats
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	true	Futures contract
+from	query	integer(int64)	false	Start timestamp
+interval	query	string	false	none
+limit	query	integer	false	none
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» time	integer(int64)	Stat timestamp
+» lsr_taker	number	Long/short account number ratio
+» lsr_account	number	Long/short taker size ratio
+» long_liq_size	integer(int64)	Long liquidation size
+» long_liq_amount	number(double)	Long liquidation amount(base currency)
+» long_liq_usd	number(double)	Long liquidation volume(quote currency)
+» short_liq_size	integer(int64)	Short liquidation size
+» short_liq_amount	number(double)	Short liquidation amount(base currency)
+» short_liq_usd	number(double)	Short liquidation volume(quote currency)
+» open_interest	integer(int64)	Open interest size
+» open_interest_usd	number(double)	Open interest volume(quote currency)
+» top_lsr_account	number(double)	Top trader long/short account ratio
+» top_lsr_size	number(double)	Top trader long/short position ratio
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/contract_stats'
+query_param = 'contract=BTC_USDT'
+r = requests.request('GET', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "time": 1603865400,
+    "lsr_taker": 100,
+    "lsr_account": 0.5,
+    "long_liq_size": 0,
+    "short_liq_size": 0,
+    "open_interest": 124724,
+    "short_liq_usd": 0,
+    "mark_price": "8865",
+    "top_lsr_size": 1.02,
+    "short_liq_amount": 0,
+    "long_liq_amount": 0,
+    "open_interest_usd": 1511,
+    "top_lsr_account": 1.5,
+    "long_liq_usd": 0
+  }
+]
+#Get index constituents
+
+GET /futures/{settle}/index_constituents/{index}
+
+Get index constituents
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+index	path	string	true	Index name
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	Inline
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» index	string	Index name
+» constituents	array	Constituents
+»» IndexConstituent	object	none
+»»» exchange	string	Exchange
+»»» symbols	array	Symbol list
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/index_constituents/BTC_USDT'
+query_param = ''
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "index": "BTC_USDT",
+  "constituents": [
+    {
+      "exchange": "Binance",
+      "symbols": [
+        "BTC_USDT"
+      ]
+    },
+    {
+      "exchange": "Gate.io",
+      "symbols": [
+        "BTC_USDT"
+      ]
+    },
+    {
+      "exchange": "Huobi",
+      "symbols": [
+        "BTC_USDT"
+      ]
+    }
+  ]
+}
+#Retrieve liquidation history
+
+GET /futures/{settle}/liq_orders
+
+Retrieve liquidation history
+
+Interval between from and to cannot exceeds 3600. Some private fields will not be returned in public endpoints. Refer to field description for detail.
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+from	query	integer(int64)	false	Start timestamp
+to	query	integer(int64)	false	End timestamp
+limit	query	integer	false	Maximum number of records to be returned in a single list
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» time	integer(int64)	Liquidation time
+» contract	string	Futures contract
+» size	integer(int64)	User position size
+» order_size	integer(int64)	Number of forced liquidation orders
+» order_price	string	Liquidation order price
+» fill_price	string	Liquidation order average taker price
+» left	integer(int64)	System liquidation order maker size
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/liq_orders'
+query_param = ''
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "time": 1548654951,
+    "contract": "BTC_USDT",
+    "size": 600,
+    "order_size": -600,
+    "order_price": "3405",
+    "fill_price": "3424",
+    "left": 0
+  }
+]
+#List risk limit tiers
+
+GET /futures/{settle}/risk_limit_tiers
+
+List risk limit tiers
+
+When the 'contract' parameter is not passed, the default is to query the risk limits for the top 100 markets.'Limit' and 'offset' correspond to pagination queries at the market level, not to the length of the returned array. This only takes effect when the 'contract' parameter is empty.
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+None	array	[Retrieve risk limit configurations for different tiers under a specified contract.]
+» None	object	Retrieve risk limit configurations for different tiers under a specified contract.
+»» tier	integer(int)	Tier
+»» risk_limit	string	Position risk limit
+»» initial_rate	string	Initial margin rate
+»» maintenance_rate	string	Maintenance margin rate
+»» leverage_max	string	Maximum leverage
+»» contract	string	Markets, visible only during market pagination requests
+This operation does not require authentication
+Code samples
+
+# coding: utf-8
+import requests
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/risk_limit_tiers'
+query_param = ''
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "maintenance_rate": "0.01",
+    "tier": 1,
+    "initial_rate": "0.02",
+    "leverage_max": "50",
+    "risk_limit": "500000",
+    "contract": "BTC_USDT"
+  },
+  {
+    "initial_rate": "0.03",
+    "maintenance_rate": "0.02",
+    "tier": 2,
+    "risk_limit": "1000000",
+    "leverage_max": "33.33",
+    "contract": "BTC_USDT"
+  },
+  {
+    "maintenance_rate": "0.01",
+    "tier": 1,
+    "initial_rate": "0.02",
+    "leverage_max": "50",
+    "risk_limit": "500000",
+    "contract": "ETH_USDT"
+  }
+]
+#Query futures account
+
+GET /futures/{settle}/accounts
+
+Query futures account
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	Inline
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» total	string	total is the balance after the user's accumulated deposit, withdraw, profit and loss (including realized profit and loss, fund, fee and referral rebate), excluding unrealized profit and loss.
+total = SUM(history_dnw, history_pnl, history_fee, history_refr, history_fund)
+» unrealised_pnl	string	Unrealized PNL
+» position_margin	string	Position margin
+» order_margin	string	Order margin of unfinished orders
+» available	string	The available balance for transferring or trading(including bonus. Bonus can't be be withdrawn. The transfer amount needs to deduct the bonus)
+» point	string	POINT amount
+» currency	string	Settle currency
+» in_dual_mode	boolean	Whether dual mode is enabled
+» enable_credit	boolean	Whether portfolio margin account mode is enabled
+» position_initial_margin	string	Initial margin position, applicable to the portfolio margin account model
+» maintenance_margin	string	The maintenance deposit occupied by the position is suitable for the new classic account margin model and unified account model
+» bonus	string	Perpetual Contract Bonus
+» enable_evolved_classic	boolean	Classic account margin mode, true-new mode, false-old mode
+» cross_order_margin	string	Full -warehouse hanging order deposit, suitable for the new classic account margin model
+» cross_initial_margin	string	The initial security deposit of the full warehouse is suitable for the new classic account margin model
+» cross_maintenance_margin	string	Maintain deposit in full warehouse, suitable for new classic account margin models
+» cross_unrealised_pnl	string	The full warehouse does not achieve profit and loss, suitable for the new classic account margin model
+» cross_available	string	Full warehouse available amount, suitable for the new classic account margin model
+» cross_margin_balance	string	Full margin balance, suitable for the new classic account margin model
+» cross_mmr	string	Maintain margin ratio for the full position, suitable for the new classic account margin model
+» cross_imr	string	The initial margin rate of the full position is suitable for the new classic account margin model
+» isolated_position_margin	string	Ware -position margin, suitable for the new classic account margin model
+» enable_new_dual_mode	boolean	Whether to open a new two-way position mode
+» margin_mode	integer	Margin mode, 0-classic margin mode, 1-cross-currency margin mode, 2-combined margin mode
+» history	object	Statistical data
+»» dnw	string	total amount of deposit and withdraw
+»» pnl	string	total amount of trading profit and loss
+»» fee	string	total amount of fee
+»» refr	string	total amount of referrer rebates
+»» fund	string	total amount of funding costs
+»» point_dnw	string	total amount of point deposit and withdraw
+»» point_fee	string	total amount of point fee
+»» point_refr	string	total amount of referrer rebates of point fee
+»» bonus_dnw	string	total amount of perpetual contract bonus transfer
+»» bonus_offset	string	total amount of perpetual contract bonus deduction
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/accounts'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "user": 1666,
+  "currency": "USDT",
+  "total": "9707.803567115145",
+  "unrealised_pnl": "3371.248828",
+  "position_margin": "38.712189181",
+  "order_margin": "0",
+  "available": "9669.091377934145",
+  "point": "0",
+  "bonus": "0",
+  "in_dual_mode": false,
+  "enable_evolved_classic": false,
+  "cross_initial_margin": "61855.56788525",
+  "cross_maintenance_margin": "682.04678105",
+  "cross_order_margin": "0",
+  "cross_unrealised_pnl": "1501.178222634128",
+  "cross_available": "27549.406108813951",
+  "cross_margin_balance": "10371.77306201952",
+  "cross_mmr": "797.2134",
+  "cross_imr": "116.6097",
+  "isolated_position_margin": "0",
+  "history": {
+    "dnw": "10000",
+    "pnl": "68.3685",
+    "fee": "-1.645812875",
+    "refr": "0",
+    "fund": "-358.919120009855",
+    "point_dnw": "0",
+    "point_fee": "0",
+    "point_refr": "0",
+    "bonus_dnw": "0",
+    "bonus_offset": "0"
+  }
+}
+#Query account book
+
+GET /futures/{settle}/account_book
+
+Query account book
+
+If the contract field is provided, it can only filter records that include this field after 2023-10-30.
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+from	query	integer(int64)	false	Start timestamp
+to	query	integer(int64)	false	End timestamp
+type	query	string	false	Changing Type：
+#Detailed descriptions
+type: Changing Type：
+
+dnw: Deposit & Withdraw
+pnl: Profit & Loss by reducing position
+fee: Trading fee
+refr: Referrer rebate
+fund: Funding
+point_dnw: POINT Deposit & Withdraw
+point_fee: POINT Trading fee
+point_refr: POINT Referrer rebate
+bonus_offset: bouns deduction
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+None	array	none
+» time	number(double)	Change time
+» change	string	Change amount
+» balance	string	Balance after change
+» type	string	Changing Type：
+
+- dnw: Deposit & Withdraw
+- pnl: Profit & Loss by reducing position
+- fee: Trading fee
+- refr: Referrer rebate
+- fund: Funding
+- point_dnw: POINT Deposit & Withdraw
+- point_fee: POINT Trading fee
+- point_refr: POINT Referrer rebate
+- bonus_offset: bouns deduction
+» text	string	Comment
+» contract	string	Futures contract, the field is only available for data after 2023-10-30.
+» trade_id	string	trade id
+» id	string	账户变更记录 id
+#Enumerated Values
+Property	Value
+type	dnw
+type	pnl
+type	fee
+type	refr
+type	fund
+type	point_dnw
+type	point_fee
+type	point_refr
+type	bonus_offset
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/account_book'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "time": 1682294400.123456,
+    "change": "0.000010152188",
+    "balance": "4.59316525194",
+    "text": "ETH_USD:6086261",
+    "type": "fee",
+    "contract": "ETH_USD",
+    "trade_id": "1",
+    "id": "1"
+  }
+]
+#List all positions of a user
+
+GET /futures/{settle}/positions
+
+List all positions of a user
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+holding	query	boolean	false	Return only real positions - true, return all - false.
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Position]
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/positions'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "user": 10000,
+    "contract": "BTC_USDT",
+    "size": -9440,
+    "leverage": "0",
+    "risk_limit": "100",
+    "leverage_max": "100",
+    "maintenance_rate": "0.005",
+    "value": "3568.62",
+    "margin": "4.431548146258",
+    "entry_price": "3779.55",
+    "liq_price": "99999999",
+    "mark_price": "3780.32",
+    "unrealised_pnl": "-0.000507486844",
+    "realised_pnl": "0.045543982432",
+    "pnl_pnl": "0.045543982432",
+    "pnl_fund": "0",
+    "pnl_fee": "0",
+    "history_pnl": "0",
+    "last_close_pnl": "0",
+    "realised_point": "0",
+    "history_point": "0",
+    "adl_ranking": 5,
+    "pending_orders": 16,
+    "close_order": {
+      "id": 232323,
+      "price": "3779",
+      "is_liq": false
+    },
+    "mode": "single",
+    "update_time": 1684994406,
+    "update_id": 1,
+    "cross_leverage_limit": "0"
+  }
+]
+#Get single position
+
+GET /futures/{settle}/positions/{contract}
+
+Get single position
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	path	string	true	Futures contract
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Position information	Position
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/positions/BTC_USDT'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "user": 10000,
+  "contract": "BTC_USDT",
+  "size": -9440,
+  "leverage": "0",
+  "risk_limit": "100",
+  "leverage_max": "100",
+  "maintenance_rate": "0.005",
+  "value": "3568.62",
+  "margin": "4.431548146258",
+  "entry_price": "3779.55",
+  "liq_price": "99999999",
+  "mark_price": "3780.32",
+  "unrealised_pnl": "-0.000507486844",
+  "realised_pnl": "0.045543982432",
+  "pnl_pnl": "0.045543982432",
+  "pnl_fund": "0",
+  "pnl_fee": "0",
+  "history_pnl": "0",
+  "last_close_pnl": "0",
+  "realised_point": "0",
+  "history_point": "0",
+  "adl_ranking": 5,
+  "pending_orders": 16,
+  "close_order": {
+    "id": 232323,
+    "price": "3779",
+    "is_liq": false
+  },
+  "mode": "single",
+  "update_time": 1684994406,
+  "update_id": 1,
+  "cross_leverage_limit": "0"
+}
+#Update position margin
+
+POST /futures/{settle}/positions/{contract}/margin
+
+Update position margin
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	path	string	true	Futures contract
+change	query	string	true	Margin change. Use positive number to increase margin, negative number otherwise.
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Position information	Position
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/positions/BTC_USDT/margin'
+query_param = 'change=0.01'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "user": 10000,
+  "contract": "BTC_USDT",
+  "size": -9440,
+  "leverage": "0",
+  "risk_limit": "100",
+  "leverage_max": "100",
+  "maintenance_rate": "0.005",
+  "value": "3568.62",
+  "margin": "4.431548146258",
+  "entry_price": "3779.55",
+  "liq_price": "99999999",
+  "mark_price": "3780.32",
+  "unrealised_pnl": "-0.000507486844",
+  "realised_pnl": "0.045543982432",
+  "pnl_pnl": "0.045543982432",
+  "pnl_fund": "0",
+  "pnl_fee": "0",
+  "history_pnl": "0",
+  "last_close_pnl": "0",
+  "realised_point": "0",
+  "history_point": "0",
+  "adl_ranking": 5,
+  "pending_orders": 16,
+  "close_order": {
+    "id": 232323,
+    "price": "3779",
+    "is_liq": false
+  },
+  "mode": "single",
+  "update_time": 1684994406,
+  "update_id": 1,
+  "cross_leverage_limit": "0"
+}
+#Update position leverage
+
+POST /futures/{settle}/positions/{contract}/leverage
+
+Update position leverage
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	path	string	true	Futures contract
+leverage	query	string	true	New position leverage
+cross_leverage_limit	query	string	false	Cross margin leverage(valid only when leverage is 0)
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Position information	Position
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/positions/BTC_USDT/leverage'
+query_param = 'leverage=10'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "user": 10000,
+  "contract": "BTC_USDT",
+  "size": -9440,
+  "leverage": "0",
+  "risk_limit": "100",
+  "leverage_max": "100",
+  "maintenance_rate": "0.005",
+  "value": "3568.62",
+  "margin": "4.431548146258",
+  "entry_price": "3779.55",
+  "liq_price": "99999999",
+  "mark_price": "3780.32",
+  "unrealised_pnl": "-0.000507486844",
+  "realised_pnl": "0.045543982432",
+  "pnl_pnl": "0.045543982432",
+  "pnl_fund": "0",
+  "pnl_fee": "0",
+  "history_pnl": "0",
+  "last_close_pnl": "0",
+  "realised_point": "0",
+  "history_point": "0",
+  "adl_ranking": 5,
+  "pending_orders": 16,
+  "close_order": {
+    "id": 232323,
+    "price": "3779",
+    "is_liq": false
+  },
+  "mode": "single",
+  "update_time": 1684994406,
+  "update_id": 1,
+  "cross_leverage_limit": "0"
+}
+#Switch to the full position-by-store mode
+
+POST /futures/{settle}/positions/cross_mode
+
+Switch to the full position-by-store mode
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+body	body	object	true	none
+» mode	body	string	true	Full position-by-position model, ISOLATED-by-position, CROSS-full position
+» contract	body	string	true	Contract Market
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Position information	Position
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/positions/cross_mode'
+query_param = ''
+body='{"mode":"ISOLATED","contract":"BTC_USDT"}'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param, body)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url, headers=headers, data=body)
+print(r.json())
+
+Body parameter
+
+{
+  "mode": "ISOLATED",
+  "contract": "BTC_USDT"
+}
+Example responses
+
+200 Response
+
+{
+  "user": 10000,
+  "contract": "BTC_USDT",
+  "size": -9440,
+  "leverage": "0",
+  "risk_limit": "100",
+  "leverage_max": "100",
+  "maintenance_rate": "0.005",
+  "value": "3568.62",
+  "margin": "4.431548146258",
+  "entry_price": "3779.55",
+  "liq_price": "99999999",
+  "mark_price": "3780.32",
+  "unrealised_pnl": "-0.000507486844",
+  "realised_pnl": "0.045543982432",
+  "pnl_pnl": "0.045543982432",
+  "pnl_fund": "0",
+  "pnl_fee": "0",
+  "history_pnl": "0",
+  "last_close_pnl": "0",
+  "realised_point": "0",
+  "history_point": "0",
+  "adl_ranking": 5,
+  "pending_orders": 16,
+  "close_order": {
+    "id": 232323,
+    "price": "3779",
+    "is_liq": false
+  },
+  "mode": "single",
+  "update_time": 1684994406,
+  "update_id": 1,
+  "cross_leverage_limit": "0"
+}
+#Update position risk limit
+
+POST /futures/{settle}/positions/{contract}/risk_limit
+
+Update position risk limit
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	path	string	true	Futures contract
+risk_limit	query	string	true	New Risk Limit Value
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Position information	Position
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/positions/BTC_USDT/risk_limit'
+query_param = 'risk_limit=1000000'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "user": 10000,
+  "contract": "BTC_USDT",
+  "size": -9440,
+  "leverage": "0",
+  "risk_limit": "100",
+  "leverage_max": "100",
+  "maintenance_rate": "0.005",
+  "value": "3568.62",
+  "margin": "4.431548146258",
+  "entry_price": "3779.55",
+  "liq_price": "99999999",
+  "mark_price": "3780.32",
+  "unrealised_pnl": "-0.000507486844",
+  "realised_pnl": "0.045543982432",
+  "pnl_pnl": "0.045543982432",
+  "pnl_fund": "0",
+  "pnl_fee": "0",
+  "history_pnl": "0",
+  "last_close_pnl": "0",
+  "realised_point": "0",
+  "history_point": "0",
+  "adl_ranking": 5,
+  "pending_orders": 16,
+  "close_order": {
+    "id": 232323,
+    "price": "3779",
+    "is_liq": false
+  },
+  "mode": "single",
+  "update_time": 1684994406,
+  "update_id": 1,
+  "cross_leverage_limit": "0"
+}
+#Enable or disable dual mode
+
+POST /futures/{settle}/dual_mode
+
+Enable or disable dual mode
+
+Before setting dual mode, make sure all positions are closed and no orders are open
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+dual_mode	query	boolean	true	Whether to enable dual mode
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Updated	Inline
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» total	string	total is the balance after the user's accumulated deposit, withdraw, profit and loss (including realized profit and loss, fund, fee and referral rebate), excluding unrealized profit and loss.
+total = SUM(history_dnw, history_pnl, history_fee, history_refr, history_fund)
+» unrealised_pnl	string	Unrealized PNL
+» position_margin	string	Position margin
+» order_margin	string	Order margin of unfinished orders
+» available	string	The available balance for transferring or trading(including bonus. Bonus can't be be withdrawn. The transfer amount needs to deduct the bonus)
+» point	string	POINT amount
+» currency	string	Settle currency
+» in_dual_mode	boolean	Whether dual mode is enabled
+» enable_credit	boolean	Whether portfolio margin account mode is enabled
+» position_initial_margin	string	Initial margin position, applicable to the portfolio margin account model
+» maintenance_margin	string	The maintenance deposit occupied by the position is suitable for the new classic account margin model and unified account model
+» bonus	string	Perpetual Contract Bonus
+» enable_evolved_classic	boolean	Classic account margin mode, true-new mode, false-old mode
+» cross_order_margin	string	Full -warehouse hanging order deposit, suitable for the new classic account margin model
+» cross_initial_margin	string	The initial security deposit of the full warehouse is suitable for the new classic account margin model
+» cross_maintenance_margin	string	Maintain deposit in full warehouse, suitable for new classic account margin models
+» cross_unrealised_pnl	string	The full warehouse does not achieve profit and loss, suitable for the new classic account margin model
+» cross_available	string	Full warehouse available amount, suitable for the new classic account margin model
+» cross_margin_balance	string	Full margin balance, suitable for the new classic account margin model
+» cross_mmr	string	Maintain margin ratio for the full position, suitable for the new classic account margin model
+» cross_imr	string	The initial margin rate of the full position is suitable for the new classic account margin model
+» isolated_position_margin	string	Ware -position margin, suitable for the new classic account margin model
+» enable_new_dual_mode	boolean	Whether to open a new two-way position mode
+» margin_mode	integer	Margin mode, 0-classic margin mode, 1-cross-currency margin mode, 2-combined margin mode
+» history	object	Statistical data
+»» dnw	string	total amount of deposit and withdraw
+»» pnl	string	total amount of trading profit and loss
+»» fee	string	total amount of fee
+»» refr	string	total amount of referrer rebates
+»» fund	string	total amount of funding costs
+»» point_dnw	string	total amount of point deposit and withdraw
+»» point_fee	string	total amount of point fee
+»» point_refr	string	total amount of referrer rebates of point fee
+»» bonus_dnw	string	total amount of perpetual contract bonus transfer
+»» bonus_offset	string	total amount of perpetual contract bonus deduction
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/dual_mode'
+query_param = 'dual_mode=true'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "user": 1666,
+  "currency": "USDT",
+  "total": "9707.803567115145",
+  "unrealised_pnl": "3371.248828",
+  "position_margin": "38.712189181",
+  "order_margin": "0",
+  "available": "9669.091377934145",
+  "point": "0",
+  "bonus": "0",
+  "in_dual_mode": false,
+  "enable_evolved_classic": false,
+  "cross_initial_margin": "61855.56788525",
+  "cross_maintenance_margin": "682.04678105",
+  "cross_order_margin": "0",
+  "cross_unrealised_pnl": "1501.178222634128",
+  "cross_available": "27549.406108813951",
+  "cross_margin_balance": "10371.77306201952",
+  "cross_mmr": "797.2134",
+  "cross_imr": "116.6097",
+  "isolated_position_margin": "0",
+  "history": {
+    "dnw": "10000",
+    "pnl": "68.3685",
+    "fee": "-1.645812875",
+    "refr": "0",
+    "fund": "-358.919120009855",
+    "point_dnw": "0",
+    "point_fee": "0",
+    "point_refr": "0",
+    "bonus_dnw": "0",
+    "bonus_offset": "0"
+  }
+}
+#Retrieve position detail in dual mode
+
+GET /futures/{settle}/dual_comp/positions/{contract}
+
+Retrieve position detail in dual mode
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	path	string	true	Futures contract
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	[Position]
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/dual_comp/positions/BTC_USDT'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "user": 10000,
+    "contract": "BTC_USDT",
+    "size": -9440,
+    "leverage": "0",
+    "risk_limit": "100",
+    "leverage_max": "100",
+    "maintenance_rate": "0.005",
+    "value": "3568.62",
+    "margin": "4.431548146258",
+    "entry_price": "3779.55",
+    "liq_price": "99999999",
+    "mark_price": "3780.32",
+    "unrealised_pnl": "-0.000507486844",
+    "realised_pnl": "0.045543982432",
+    "pnl_pnl": "0.045543982432",
+    "pnl_fund": "0",
+    "pnl_fee": "0",
+    "history_pnl": "0",
+    "last_close_pnl": "0",
+    "realised_point": "0",
+    "history_point": "0",
+    "adl_ranking": 5,
+    "pending_orders": 16,
+    "close_order": {
+      "id": 232323,
+      "price": "3779",
+      "is_liq": false
+    },
+    "mode": "single",
+    "update_time": 1684994406,
+    "update_id": 1,
+    "cross_leverage_limit": "0"
+  }
+]
+#Update position margin in dual mode
+
+POST /futures/{settle}/dual_comp/positions/{contract}/margin
+
+Update position margin in dual mode
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	path	string	true	Futures contract
+change	query	string	true	Margin change. Use positive number to increase margin, negative number otherwise.
+dual_side	query	string	true	Long or short position
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	[Position]
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/dual_comp/positions/BTC_USDT/margin'
+query_param = 'change=0.01&dual_side=dual_long'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "user": 10000,
+    "contract": "BTC_USDT",
+    "size": -9440,
+    "leverage": "0",
+    "risk_limit": "100",
+    "leverage_max": "100",
+    "maintenance_rate": "0.005",
+    "value": "3568.62",
+    "margin": "4.431548146258",
+    "entry_price": "3779.55",
+    "liq_price": "99999999",
+    "mark_price": "3780.32",
+    "unrealised_pnl": "-0.000507486844",
+    "realised_pnl": "0.045543982432",
+    "pnl_pnl": "0.045543982432",
+    "pnl_fund": "0",
+    "pnl_fee": "0",
+    "history_pnl": "0",
+    "last_close_pnl": "0",
+    "realised_point": "0",
+    "history_point": "0",
+    "adl_ranking": 5,
+    "pending_orders": 16,
+    "close_order": {
+      "id": 232323,
+      "price": "3779",
+      "is_liq": false
+    },
+    "mode": "single",
+    "update_time": 1684994406,
+    "update_id": 1,
+    "cross_leverage_limit": "0"
+  }
+]
+#Update position leverage in dual mode
+
+POST /futures/{settle}/dual_comp/positions/{contract}/leverage
+
+Update position leverage in dual mode
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	path	string	true	Futures contract
+leverage	query	string	true	New position leverage
+cross_leverage_limit	query	string	false	Cross margin leverage(valid only when leverage is 0)
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	[Position]
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/dual_comp/positions/BTC_USDT/leverage'
+query_param = 'leverage=10'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "user": 10000,
+    "contract": "BTC_USDT",
+    "size": -9440,
+    "leverage": "0",
+    "risk_limit": "100",
+    "leverage_max": "100",
+    "maintenance_rate": "0.005",
+    "value": "3568.62",
+    "margin": "4.431548146258",
+    "entry_price": "3779.55",
+    "liq_price": "99999999",
+    "mark_price": "3780.32",
+    "unrealised_pnl": "-0.000507486844",
+    "realised_pnl": "0.045543982432",
+    "pnl_pnl": "0.045543982432",
+    "pnl_fund": "0",
+    "pnl_fee": "0",
+    "history_pnl": "0",
+    "last_close_pnl": "0",
+    "realised_point": "0",
+    "history_point": "0",
+    "adl_ranking": 5,
+    "pending_orders": 16,
+    "close_order": {
+      "id": 232323,
+      "price": "3779",
+      "is_liq": false
+    },
+    "mode": "single",
+    "update_time": 1684994406,
+    "update_id": 1,
+    "cross_leverage_limit": "0"
+  }
+]
+#Update position risk limit in dual mode
+
+POST /futures/{settle}/dual_comp/positions/{contract}/risk_limit
+
+Update position risk limit in dual mode
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	path	string	true	Futures contract
+risk_limit	query	string	true	New Risk Limit Value
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	[Position]
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/dual_comp/positions/BTC_USDT/risk_limit'
+query_param = 'risk_limit=1000000'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "user": 10000,
+    "contract": "BTC_USDT",
+    "size": -9440,
+    "leverage": "0",
+    "risk_limit": "100",
+    "leverage_max": "100",
+    "maintenance_rate": "0.005",
+    "value": "3568.62",
+    "margin": "4.431548146258",
+    "entry_price": "3779.55",
+    "liq_price": "99999999",
+    "mark_price": "3780.32",
+    "unrealised_pnl": "-0.000507486844",
+    "realised_pnl": "0.045543982432",
+    "pnl_pnl": "0.045543982432",
+    "pnl_fund": "0",
+    "pnl_fee": "0",
+    "history_pnl": "0",
+    "last_close_pnl": "0",
+    "realised_point": "0",
+    "history_point": "0",
+    "adl_ranking": 5,
+    "pending_orders": 16,
+    "close_order": {
+      "id": 232323,
+      "price": "3779",
+      "is_liq": false
+    },
+    "mode": "single",
+    "update_time": 1684994406,
+    "update_id": 1,
+    "cross_leverage_limit": "0"
+  }
+]
+#Create a futures order
+
+POST /futures/{settle}/orders
+
+Create a futures order
+
+When placing an order, the number of contracts is specified size, not the number of coins. The number of coins corresponding to each contract is returned in the contract details interface quanto_multiplier
+0 The order that was completed cannot be obtained after 10 minutes of withdrawal, and the order will be mentioned that the order does not exist
+Setting reduce_only to true can prevent the position from being penetrated when reducing the position
+In single-position mode, if you need to close the position, you need to set size to 0 and close to true
+In dual warehouse mode,
+Reduce position: reduce_only=true, size is a positive number that indicates short position, negative number that indicates long position
+Add position: reduce_only=false, size is a positive number that indicates adding long positions, and negative numbers indicate adding short positions
+Close position: size=0, set the direction of closing position according to auto_size, and set reduce_only to true at the same time - reduce_only: Make sure to only perform position reduction operations to prevent increased positions
+Set stp_act to determine the use of a strategy that restricts user transactions. For detailed usage, refer to the body parameter stp_act
+Parameters
+Name	In	Type	Required	Description
+x-gate-exptime	header	string	false	Specify the expiration time (milliseconds); if the GATE receives the request time greater than the expiration time, the request will be rejected
+body	body	FuturesOrder	true	none
+» contract	body	string	true	Futures contract
+» size	body	integer(int64)	true	Order size. Specify positive number to make a bid, and negative number to ask
+» iceberg	body	integer(int64)	false	Display size for iceberg order. 0 for non-iceberg. Note that you will have to pay the taker fee for the hidden size
+» price	body	string	false	Order price. 0 for market order with tif set as ioc
+» close	body	boolean	false	Set as true to close the position, with size set to 0
+» reduce_only	body	boolean	false	Set as true to be reduce-only order
+» tif	body	string	false	Time in force
+» text	body	string	false	Order custom information, users can use this field to set a custom ID, and the user-defined field must meet the following conditions:
+» auto_size	body	string	false	Set side to close dual-mode position. close_long closes the long side; while close_short the short one. Note size also needs to be set to 0
+» stp_act	body	string	false	Self-Trading Prevention Action. Users can use this field to set self-trade prevetion strategies
+» bbo	body	string	false	Specify the price of the opponent
+» default_leverage	body	string	false	Default leverage multiple
+settle	path	string	true	Settle currency
+#Detailed descriptions
+» tif: Time in force
+
+gtc: GoodTillCancelled
+ioc: ImmediateOrCancelled, taker only
+poc: PendingOrCancelled, makes a post-only order that always enjoys a maker fee
+fok: FillOrKill, fill either completely or none
+» text: Order custom information, users can use this field to set a custom ID, and the user-defined field must meet the following conditions:
+
+Must start with t-
+If t- is not calculated, the length cannot exceed 28 bytes
+The input content can only contain numbers, letters, underscores (_), midscores (-) or dots (.)
+In addition to user-defined information, the following are internal reserved fields that identifies the source of the order:
+
+web: web page
+api: API call
+app: mobile terminal
+auto_deleveraging: Automatic position reduction
+liquidation: Liquidation under the classic account’s old liquidation mode
+liq-xxx: a. Liquidation under the classic account’s new liquidation mode (isolated, cross margin one-way mode, non-hedging part of cross margin hedge mode) b. Liquidation under isolated margin in unified account single currency margin mode
+hedge-liq-xxx: Liquidation under the new liquidation mode of the classic account hedge mode, the cross margin hedged part undergoes liquidation, meaning both long and short positions are liquidated simultaneously.
+pm_liquidate: Unified account multi-currency margin mode liquidation
+comb_margin_liquidate: Unified account portfolio margin mode liquidation
+scm_liquidate: Unified account single currency margin mode liquidation
+insurance: insurance
+» stp_act: Self-Trading Prevention Action. Users can use this field to set self-trade prevetion strategies
+
+After users join the STP Group, he can pass stp_act to limit the user's self-trade prevetion strategy. If stp_act is not passed, the default is cn strategy。
+When the user does not join the STP group, an error will be returned when passing the stp_act parameter。
+If the user did not use 'stp_act' when placing the order, 'stp_act' will return '-'
+cn: Cancel newest, Cancel new orders and keep old ones
+co: Cancel oldest, Cancel old orders and keep new ones
+cb: Cancel both, Both old and new orders will be cancelled
+#Enumerated Values
+Parameter	Value
+» tif	gtc
+» tif	ioc
+» tif	poc
+» tif	fok
+» auto_size	close_long
+» auto_size	close_short
+» stp_act	co
+» stp_act	cn
+» stp_act	cb
+» stp_act	-
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+201	Created(opens new window)	Order details	FuturesOrder
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/orders'
+query_param = ''
+body='{"contract":"BTC_USDT","size":6024,"iceberg":0,"price":"3765","tif":"gtc","text":"t-my-custom-id","stp_act":"-"}'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param, body)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url, headers=headers, data=body)
+print(r.json())
+
+Body parameter
+
+{
+  "contract": "BTC_USDT",
+  "size": 6024,
+  "iceberg": 0,
+  "price": "3765",
+  "tif": "gtc",
+  "text": "t-my-custom-id",
+  "stp_act": "-"
+}
+Example responses
+
+201 Response
+
+{
+  "id": 15675394,
+  "user": 100000,
+  "contract": "BTC_USDT",
+  "create_time": 1546569968,
+  "size": 6024,
+  "iceberg": 0,
+  "left": 6024,
+  "price": "3765",
+  "fill_price": "0",
+  "mkfr": "-0.00025",
+  "tkfr": "0.00075",
+  "tif": "gtc",
+  "refu": 0,
+  "is_reduce_only": false,
+  "is_close": false,
+  "is_liq": false,
+  "text": "t-my-custom-id",
+  "status": "finished",
+  "finish_time": 1514764900,
+  "finish_as": "cancelled",
+  "stp_id": 0,
+  "stp_act": "-",
+  "amend_text": "-"
+}
+#List futures orders
+
+GET /futures/{settle}/orders
+
+List futures orders
+
+Zero-fill order cannot be retrieved for 10 minutes after cancellation
+Historical orders, by default, only data within the past 6 months is supported. If you need to query data for a longer period, please use GET /futures/{settle}/orders_timerange.
+Parameters
+Name	In	Type	Required	Description
+contract	query	string	false	Futures contract, return related data only if specified
+status	query	string	true	Only list the orders with this status
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+last_id	query	string	false	Specify list staring point using the id of last record in previous list-query results
+settle	path	string	true	Settle currency
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[FuturesOrder]
+#Response Headers
+Status	Header	Type	Format	Description
+200	X-Pagination-Limit	integer		Request limit specified
+200	X-Pagination-Offset	integer		Request offset specified
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/orders'
+query_param = 'status=open'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "id": 15675394,
+    "user": 100000,
+    "contract": "BTC_USDT",
+    "create_time": 1546569968,
+    "size": 6024,
+    "iceberg": 0,
+    "left": 6024,
+    "price": "3765",
+    "fill_price": "0",
+    "mkfr": "-0.00025",
+    "tkfr": "0.00075",
+    "tif": "gtc",
+    "refu": 0,
+    "is_reduce_only": false,
+    "is_close": false,
+    "is_liq": false,
+    "text": "t-my-custom-id",
+    "status": "finished",
+    "finish_time": 1514764900,
+    "finish_as": "cancelled",
+    "stp_id": 0,
+    "stp_act": "-",
+    "amend_text": "-"
+  }
+]
+#Cancel all open orders matched
+
+DELETE /futures/{settle}/orders
+
+Cancel all open orders matched
+
+Zero-filled order cannot be retrieved 10 minutes after order cancellation
+
+Parameters
+Name	In	Type	Required	Description
+x-gate-exptime	header	string	false	Specify the expiration time (milliseconds); if the GATE receives the request time greater than the expiration time, the request will be rejected
+contract	query	string	true	Futures contract
+side	query	string	false	Specify all buy orders or all sell orders, if not specify them, both are included. Revoke all buy orders and revoke all sell orders and make ask
+settle	path	string	true	Settle currency
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	All orders matched cancelled	[FuturesOrder]
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/orders'
+query_param = 'contract=BTC_USDT'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('DELETE', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('DELETE', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "id": 15675394,
+    "user": 100000,
+    "contract": "BTC_USDT",
+    "create_time": 1546569968,
+    "size": 6024,
+    "iceberg": 0,
+    "left": 6024,
+    "price": "3765",
+    "fill_price": "0",
+    "mkfr": "-0.00025",
+    "tkfr": "0.00075",
+    "tif": "gtc",
+    "refu": 0,
+    "is_reduce_only": false,
+    "is_close": false,
+    "is_liq": false,
+    "text": "t-my-custom-id",
+    "status": "finished",
+    "finish_time": 1514764900,
+    "finish_as": "cancelled",
+    "stp_id": 0,
+    "stp_act": "-",
+    "amend_text": "-"
+  }
+]
+#List Futures Orders By Time Range
+
+GET /futures/{settle}/orders_timerange
+
+List Futures Orders By Time Range
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+from	query	integer(int64)	false	Start timestamp
+to	query	integer(int64)	false	End timestamp
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[FuturesOrder]
+#Response Headers
+Status	Header	Type	Format	Description
+200	X-Pagination-Limit	integer		Request limit specified
+200	X-Pagination-Offset	integer		Request offset specified
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/orders_timerange'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "id": 15675394,
+    "user": 100000,
+    "contract": "BTC_USDT",
+    "create_time": 1546569968,
+    "size": 6024,
+    "iceberg": 0,
+    "left": 6024,
+    "price": "3765",
+    "fill_price": "0",
+    "mkfr": "-0.00025",
+    "tkfr": "0.00075",
+    "tif": "gtc",
+    "refu": 0,
+    "is_reduce_only": false,
+    "is_close": false,
+    "is_liq": false,
+    "text": "t-my-custom-id",
+    "status": "finished",
+    "finish_time": 1514764900,
+    "finish_as": "cancelled",
+    "stp_id": 0,
+    "stp_act": "-",
+    "amend_text": "-"
+  }
+]
+#Create a batch of futures orders
+
+POST /futures/{settle}/batch_orders
+
+Create a batch of futures orders
+
+Up to 10 orders per request
+If any of the order's parameters are missing or in the wrong format, all of them will not be executed, and a http status 400 error will be returned directly
+If the parameters are checked and passed, all are executed. Even if there is a business logic error in the middle (such as insufficient funds), it will not affect other execution orders
+The returned result is in array format, and the order corresponds to the orders in the request body
+In the returned result, the succeeded field of type bool indicates whether the execution was successful or not
+If the execution is successful, the normal order content is included; if the execution fails, the label field is included to indicate the cause of the error
+In the rate limiting, each order is counted individually
+Parameters
+Name	In	Type	Required	Description
+x-gate-exptime	header	string	false	Specify the expiration time (milliseconds); if the GATE receives the request time greater than the expiration time, the request will be rejected
+body	body	array[FuturesOrder]	true	none
+settle	path	string	true	Settle currency
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Request is completed	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+None	array	[Futures order details]
+» None	object	Futures order details
+»» succeeded	boolean	Whether the batch of orders succeeded
+»» label	string	Error label, only exists if execution fails
+»» detail	string	Error detail, only present if execution failed and details need to be given
+»» id	integer(int64)	Futures order ID
+»» user	integer	User ID
+»» create_time	number(double)	Creation time of order
+»» finish_time	number(double)	Order finished time. Not returned if order is open
+»» finish_as	string	How the order was finished.
+
+- filled: all filled
+- cancelled: manually cancelled
+- liquidated: cancelled because of liquidation
+- ioc: time in force is IOC, finish immediately
+- auto_deleveraged: finished by ADL
+- reduce_only: cancelled because of increasing position while reduce-only set- position_closed: cancelled because of position close
+- position_closed: canceled because the position was closed
+- reduce_out: only reduce positions by excluding hard-to-fill orders
+- stp: cancelled because self trade prevention
+»» status	string	Order status
+
+- open: waiting to be traded
+- finished: finished
+»» contract	string	Futures contract
+»» size	integer(int64)	Order size. Specify positive number to make a bid, and negative number to ask
+»» iceberg	integer(int64)	Display size for iceberg order. 0 for non-iceberg. Note that you will have to pay the taker fee for the hidden size
+»» price	string	Order price. 0 for market order with tif set as ioc
+»» is_close	boolean	Is the order to close position
+»» is_reduce_only	boolean	Is the order reduce-only
+»» is_liq	boolean	Is the order for liquidation
+»» tif	string	Time in force
+
+- gtc: GoodTillCancelled
+- ioc: ImmediateOrCancelled, taker only
+- poc: PendingOrCancelled, makes a post-only order that always enjoys a maker fee
+- fok: FillOrKill, fill either completely or none
+»» left	integer(int64)	Size left to be traded
+»» fill_price	string	Fill price of the order
+»» text	string	User defined information. If not empty, must follow the rules below:
+
+1. prefixed with t-
+2. no longer than 28 bytes without t- prefix
+3. can only include 0-9, A-Z, a-z, underscore(_), hyphen(-) or dot(.)
+Besides user defined information, reserved contents are listed below, denoting how the order is created:
+
+- web: from web
+- api: from API
+- app: from mobile phones
+- auto_deleveraging: from ADL
+- liquidation: from liquidation
+- insurance: from insurance
+»» tkfr	string	Taker fee
+»» mkfr	string	Maker fee
+»» refu	integer	Reference user ID
+»» stp_act	string	Self-Trading Prevention Action. Users can use this field to set self-trade prevetion strategies
+
+1. After users join the STP Group, he can pass stp_act to limit the user's self-trade prevetion strategy. If stp_act is not passed, the default is cn strategy。
+2. When the user does not join the STP group, an error will be returned when passing the stp_act parameter。
+3. If the user did not use 'stp_act' when placing the order, 'stp_act' will return '-'
+
+- cn: Cancel newest, Cancel new orders and keep old ones
+- co: Cancel oldest, Cancel old orders and keep new ones
+- cb: Cancel both, Both old and new orders will be cancelled
+»» stp_id	integer	Orders between users in the same stp_id group are not allowed to be self-traded
+
+1. If the stp_id of two orders being matched is non-zero and equal, they will not be executed. Instead, the corresponding strategy will be executed based on the stp_act of the taker.
+2. stp_id returns 0 by default for orders that have not been set for STP group
+#Enumerated Values
+Property	Value
+finish_as	filled
+finish_as	cancelled
+finish_as	liquidated
+finish_as	ioc
+finish_as	auto_deleveraged
+finish_as	reduce_only
+finish_as	position_closed
+finish_as	reduce_out
+finish_as	stp
+status	open
+status	finished
+tif	gtc
+tif	ioc
+tif	poc
+tif	fok
+stp_act	co
+stp_act	cn
+stp_act	cb
+stp_act	-
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/batch_orders'
+query_param = ''
+body='[{"contract":"BTC_USDT","size":6024,"iceberg":0,"price":"3765","tif":"gtc","text":"t-my-custom-id","stp_act":"-"}]'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param, body)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url, headers=headers, data=body)
+print(r.json())
+
+Body parameter
+
+[
+  {
+    "contract": "BTC_USDT",
+    "size": 6024,
+    "iceberg": 0,
+    "price": "3765",
+    "tif": "gtc",
+    "text": "t-my-custom-id",
+    "stp_act": "-"
+  }
+]
+Example responses
+
+200 Response
+
+[
+  {
+    "succeeded": true,
+    "id": 15675394,
+    "user": 100000,
+    "contract": "BTC_USDT",
+    "create_time": 1546569968,
+    "size": 6024,
+    "iceberg": 0,
+    "left": 6024,
+    "price": "3765",
+    "fill_price": "0",
+    "mkfr": "-0.00025",
+    "tkfr": "0.00075",
+    "tif": "gtc",
+    "refu": 0,
+    "is_reduce_only": false,
+    "is_close": false,
+    "is_liq": false,
+    "text": "t-my-custom-id",
+    "status": "finished",
+    "finish_time": 1514764900,
+    "finish_as": "cancelled",
+    "stp_id": 0,
+    "stp_act": "-",
+    "amend_text": "-"
+  }
+]
+#Get a single order
+
+GET /futures/{settle}/orders/{order_id}
+
+Get a single order
+
+Zero-fill order cannot be retrieved for 10 minutes after cancellation
+Historical orders, by default, only data within the past 6 months is supported.
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+order_id	path	string	true	Order ID returned, or user custom ID(i.e., text field).
+#Detailed descriptions
+order_id: Order ID returned, or user custom ID(i.e., text field). Operations based on custom ID can only be checked when the order is in orderbook. When the order is finished, it can be checked within 60 seconds after the end of the order. After that, only order ID is accepted.
+
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Order details	FuturesOrder
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/orders/12345'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "id": 15675394,
+  "user": 100000,
+  "contract": "BTC_USDT",
+  "create_time": 1546569968,
+  "size": 6024,
+  "iceberg": 0,
+  "left": 6024,
+  "price": "3765",
+  "fill_price": "0",
+  "mkfr": "-0.00025",
+  "tkfr": "0.00075",
+  "tif": "gtc",
+  "refu": 0,
+  "is_reduce_only": false,
+  "is_close": false,
+  "is_liq": false,
+  "text": "t-my-custom-id",
+  "status": "finished",
+  "finish_time": 1514764900,
+  "finish_as": "cancelled",
+  "stp_id": 0,
+  "stp_act": "-",
+  "amend_text": "-"
+}
+#Cancel a single order
+
+DELETE /futures/{settle}/orders/{order_id}
+
+Cancel a single order
+
+Parameters
+Name	In	Type	Required	Description
+x-gate-exptime	header	string	false	Specify the expiration time (milliseconds); if the GATE receives the request time greater than the expiration time, the request will be rejected
+settle	path	string	true	Settle currency
+order_id	path	string	true	Order ID returned, or user custom ID(i.e., text field).
+#Detailed descriptions
+order_id: Order ID returned, or user custom ID(i.e., text field). Operations based on custom ID can only be checked when the order is in orderbook. When the order is finished, it can be checked within 60 seconds after the end of the order. After that, only order ID is accepted.
+
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Order details	FuturesOrder
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/orders/12345'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('DELETE', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('DELETE', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "id": 15675394,
+  "user": 100000,
+  "contract": "BTC_USDT",
+  "create_time": 1546569968,
+  "size": 6024,
+  "iceberg": 0,
+  "left": 6024,
+  "price": "3765",
+  "fill_price": "0",
+  "mkfr": "-0.00025",
+  "tkfr": "0.00075",
+  "tif": "gtc",
+  "refu": 0,
+  "is_reduce_only": false,
+  "is_close": false,
+  "is_liq": false,
+  "text": "t-my-custom-id",
+  "status": "finished",
+  "finish_time": 1514764900,
+  "finish_as": "cancelled",
+  "stp_id": 0,
+  "stp_act": "-",
+  "amend_text": "-"
+}
+#Amend an order
+
+PUT /futures/{settle}/orders/{order_id}
+
+Amend an order
+
+Parameters
+Name	In	Type	Required	Description
+x-gate-exptime	header	string	false	Specify the expiration time (milliseconds); if the GATE receives the request time greater than the expiration time, the request will be rejected
+body	body	object	true	none
+» size	body	integer(int64)	false	New order size, including filled part.
+» price	body	string	false	New order price.
+» amend_text	body	string	false	Custom info during amending order
+» biz_info	body	string	false	Users can annotate this modification with information.
+» bbo	body	string	false	Users are able to modify the offer price manually.
+settle	path	string	true	Settle currency
+order_id	path	string	true	Order ID returned, or user custom ID(i.e., text field).
+#Detailed descriptions
+» size: New order size, including filled part.
+
+If new size is less than or equal to filled size, the order will be cancelled.
+Order side must be identical to the original one.
+Close order size cannot be changed.
+For reduce only orders, increasing size may leads to other reduce only orders being cancelled.
+If price is not changed, decreasing size will not change its precedence in order book, while increasing will move it to the last at current price.
+order_id: Order ID returned, or user custom ID(i.e., text field). Operations based on custom ID can only be checked when the order is in orderbook. When the order is finished, it can be checked within 60 seconds after the end of the order. After that, only order ID is accepted.
+
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Order details	FuturesOrder
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/orders/12345'
+query_param = ''
+body='{"size":100,"price":"54321"}'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('PUT', prefix + url, query_param, body)
+headers.update(sign_headers)
+r = requests.request('PUT', host + prefix + url, headers=headers, data=body)
+print(r.json())
+
+Body parameter
+
+{
+  "size": 100,
+  "price": "54321"
+}
+Example responses
+
+200 Response
+
+{
+  "id": 15675394,
+  "user": 100000,
+  "contract": "BTC_USDT",
+  "create_time": 1546569968,
+  "size": 6024,
+  "iceberg": 0,
+  "left": 6024,
+  "price": "3765",
+  "fill_price": "0",
+  "mkfr": "-0.00025",
+  "tkfr": "0.00075",
+  "tif": "gtc",
+  "refu": 0,
+  "is_reduce_only": false,
+  "is_close": false,
+  "is_liq": false,
+  "text": "t-my-custom-id",
+  "status": "finished",
+  "finish_time": 1514764900,
+  "finish_as": "cancelled",
+  "stp_id": 0,
+  "stp_act": "-",
+  "amend_text": "-"
+}
+#List personal trading history
+
+GET /futures/{settle}/my_trades
+
+List personal trading history
+
+By default, only data within the past 6 months is supported. If you need to query data for a longer period, please use GET /futures/{settle}/my_trades_timerange.
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+order	query	integer(int64)	false	Futures order ID, return related data only if specified
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+last_id	query	string	false	Specify the starting point for this list based on a previously retrieved id
+#Detailed descriptions
+last_id: Specify the starting point for this list based on a previously retrieved id
+
+This parameter is deprecated. If you need to iterate through and retrieve more records, we recommend using 'GET /futures/{settle}/my_trades_timerange'.
+
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+None	array	none
+» id	integer(int64)	Trade ID
+» create_time	number(double)	Trading time
+» contract	string	Futures contract
+» order_id	string	Order ID related
+» size	integer(int64)	Trading size
+» close_size	integer(int64)	Number of closed positions:
+
+close_size=0 && size＞0 Open long position
+close_size=0 && size＜0 Open short position
+close_size>0 && size>0 && size <= close_size Close short postion
+close_size>0 && size>0 && size > close_size Close short position and open long position
+close_size<0 && size<0 && size >= close_size Close long postion
+close_size<0 && size<0 && size < close_size Close long position and open short position
+» price	string	Trading price
+» role	string	Trade role. Available values are taker and maker
+» text	string	User defined information
+» fee	string	Fee deducted
+» point_fee	string	Points used to deduct fee
+#Enumerated Values
+Property	Value
+role	taker
+role	maker
+#Response Headers
+Status	Header	Type	Format	Description
+200	X-Pagination-Limit	integer		Request limit specified
+200	X-Pagination-Offset	integer		Request offset specified
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/my_trades'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "id": 121234231,
+    "create_time": 1514764800.123,
+    "contract": "BTC_USDT",
+    "order_id": "21893289839",
+    "size": 100,
+    "price": "100.123",
+    "text": "t-123456",
+    "fee": "0.01",
+    "point_fee": "0",
+    "role": "taker",
+    "close_size": 0
+  }
+]
+#List personal trading history by time range
+
+GET /futures/{settle}/my_trades_timerange
+
+List personal trading history by time range
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+from	query	integer(int64)	false	Start timestamp
+to	query	integer(int64)	false	End timestamp
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+role	query	string	false	Query role, maker or taker.
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» trade_id	string	Trade ID
+» create_time	number(double)	Trading time
+» contract	string	Futures contract
+» order_id	string	Order ID related
+» size	integer(int64)	Trading size
+» close_size	integer(int64)	Number of closed positions:
+
+close_size=0 && size＞0 Open long position
+close_size=0 && size＜0 Open short position
+close_size>0 && size>0 && size <= close_size Close short postion
+close_size>0 && size>0 && size > close_size Close short position and open long position
+close_size<0 && size<0 && size >= close_size Close long postion
+close_size<0 && size<0 && size < close_size Close long position and open short position
+» price	string	Trading price
+» role	string	Trade role. Available values are taker and maker
+» text	string	User defined information
+» fee	string	Fee deducted
+» point_fee	string	Points used to deduct fee
+#Enumerated Values
+Property	Value
+role	taker
+role	maker
+#Response Headers
+Status	Header	Type	Format	Description
+200	X-Pagination-Limit	integer		Request limit specified
+200	X-Pagination-Offset	integer		Request offset specified
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/my_trades_timerange'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "trade_id": "121234231",
+    "create_time": 1514764800.123,
+    "contract": "BTC_USDT",
+    "order_id": "21893289839",
+    "size": 100,
+    "price": "100.123",
+    "text": "t-123456",
+    "fee": "0.01",
+    "point_fee": "0",
+    "role": "taker",
+    "close_size": 0
+  }
+]
+#List position close history
+
+GET /futures/{settle}/position_close
+
+List position close history
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+from	query	integer(int64)	false	Start timestamp
+to	query	integer(int64)	false	End timestamp
+side	query	string	false	Query side. long or shot
+pnl	query	string	false	Query profit or loss
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+None	array	none
+» time	number(double)	Position close time
+» contract	string	Futures contract
+» side	string	Position side, long or short
+» pnl	string	PNL
+» pnl_pnl	string	PNL - Position P/L
+» pnl_fund	string	PNL - Funding Fees
+» pnl_fee	string	PNL - Transaction Fees
+» text	string	Text of close order
+» max_size	string	Max Trade Size
+» accum_size	string	Cumulative closed position volume
+» first_open_time	integer(int64)	First Open Time
+» long_price	string	When 'side' is 'long,' it indicates the opening average price; when 'side' is 'short,' it indicates the closing average price.
+» short_price	string	When 'side' is 'long,' it indicates the opening average price; when 'side' is 'short,' it indicates the closing average price
+#Enumerated Values
+Property	Value
+side	long
+side	short
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/position_close'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "time": 1546487347,
+    "pnl": "0.00013",
+    "pnl_pnl": "0.00011",
+    "pnl_fund": "0.00001",
+    "pnl_fee": "0.00001",
+    "side": "long",
+    "contract": "BTC_USDT",
+    "text": "web",
+    "max_size": "100",
+    "accum_size": "100",
+    "first_open_time": 1546487347,
+    "long_price": "2026.87",
+    "short_price": "2544.4"
+  }
+]
+#List liquidation history
+
+GET /futures/{settle}/liquidates
+
+List liquidation history
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+limit	query	integer	false	Maximum number of records to be returned in a single list
+at	query	integer	false	Specify a liquidation timestamp
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+None	array	none
+» time	integer(int64)	Liquidation time
+» contract	string	Futures contract
+» leverage	string	Position leverage. Not returned in public endpoints.
+» size	integer(int64)	Position size
+» margin	string	Position margin. Not returned in public endpoints.
+» entry_price	string	Average entry price. Not returned in public endpoints.
+» liq_price	string	Liquidation price. Not returned in public endpoints.
+» mark_price	string	Mark price. Not returned in public endpoints.
+» order_id	integer(int64)	Liquidation order ID. Not returned in public endpoints.
+» order_price	string	Liquidation order price
+» fill_price	string	Liquidation order average taker price
+» left	integer(int64)	Liquidation order maker size
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/liquidates'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "time": 1548654951,
+    "contract": "BTC_USDT",
+    "size": 600,
+    "leverage": "25",
+    "margin": "0.006705256878",
+    "entry_price": "3536.123",
+    "liq_price": "3421.54",
+    "mark_price": "3420.27",
+    "order_id": 317393847,
+    "order_price": "3405",
+    "fill_price": "3424",
+    "left": 0
+  }
+]
+#List Auto-Deleveraging History
+
+GET /futures/{settle}/auto_deleverages
+
+List Auto-Deleveraging History
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+limit	query	integer	false	Maximum number of records to be returned in a single list
+at	query	integer	false	Specify an auto-deleveraging timestamp
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» time	integer(int64)	Automatic deleveraging time
+» user	integer(int64)	User ID
+» order_id	integer(int64)	Order ID. Order IDs before 2023-02-20 are null
+» contract	string	Futures contract
+» leverage	string	Position leverage
+» cross_leverage_limit	string	Cross margin leverage(valid only when leverage is 0)
+» entry_price	string	Average entry price
+» fill_price	string	Average fill price
+» trade_size	integer(int64)	Trading size
+» position_size	integer(int64)	Positions after auto-deleveraging
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/auto_deleverages'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "time": 1675841679,
+    "contract": "ACH_USDT",
+    "order_id": 73873128,
+    "user": 1666,
+    "cross_leverage_limit": "0",
+    "leverage": "0",
+    "entry_price": "2649.648633636364",
+    "fill_price": "2790.8082",
+    "position_size": 1,
+    "trade_size": -10
+  }
+]
+#Countdown cancel orders
+
+POST /futures/{settle}/countdown_cancel_all
+
+Countdown cancel orders
+
+When the timeout set by the user is reached, if there is no cancel or set a new countdown, the related pending orders will be automatically cancelled. This endpoint can be called repeatedly to set a new countdown or cancel the countdown. For example, call this endpoint at 30s intervals, each countdowntimeout is set to 30s. If this endpoint is not called again within 30 seconds, all pending orders on the specified market will be automatically cancelled, if no market is specified, all market pending orders will be cancelled. If the timeout is set to 0 within 30 seconds, the countdown timer will expire and the cacnel function will be cancelled.
+
+Parameters
+Name	In	Type	Required	Description
+body	body	object	true	none
+» timeout	body	integer(int32)	true	Countdown time, in seconds
+» contract	body	string	false	Futures contract
+settle	path	string	true	Settle currency
+#Detailed descriptions
+» timeout: Countdown time, in seconds At least 5 seconds, 0 means cancel the countdown
+
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Set countdown successfully	Inline
+Response Schema
+Status Code 200
+
+triggerTime
+
+Name	Type	Description
+» triggerTime	integer(int64)	Timestamp of the end of the countdown, in milliseconds
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/countdown_cancel_all'
+query_param = ''
+body='{"timeout":30,"contract":"BTC_USDT"}'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param, body)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url, headers=headers, data=body)
+print(r.json())
+
+Body parameter
+
+{
+  "timeout": 30,
+  "contract": "BTC_USDT"
+}
+Example responses
+
+200 Response
+
+{
+  "triggerTime": "1660039145000"
+}
+#Query user trading fee rates
+
+GET /futures/{settle}/fee
+
+Query user trading fee rates
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+contract	query	string	false	Futures contract, return related data only if specified
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Successfully retrieved	Inline
+Response Schema
+Status Code 200
+
+FuturesFee
+
+Name	Type	Description
+» additionalProperties	object	The returned result is a map type, where the key represents the market and the value represents the taker and maker fee rates.
+»» taker_fee	string	Taker fee
+»» maker_fee	string	maker fee
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/fee'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "1INCH_USDT": {
+    "taker_fee": "0.00025",
+    "maker_fee": "-0.00010"
+  },
+  "AAVE_USDT": {
+    "taker_fee": "0.00025",
+    "maker_fee": "-0.00010"
+  }
+}
+#Cancel a batch of orders with an ID list
+
+POST /futures/{settle}/batch_cancel_orders
+
+Cancel a batch of orders with an ID list
+
+Multiple distinct order ID list can be specified。Each request can cancel a maximum of 20 records.
+
+Parameters
+Name	In	Type	Required	Description
+x-gate-exptime	header	string	false	Specify the expiration time (milliseconds); if the GATE receives the request time greater than the expiration time, the request will be rejected
+body	body	array[string]	true	none
+settle	path	string	true	Settle currency
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Order cancellation operation completed	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+» FutureCancelOrderResult	object	Order cancellation result
+»» id	string	Order ID
+»» user_id	integer(int64)	User ID
+»» succeeded	boolean	Whether cancellation succeeded
+»» message	string	Error message when failed to cancel the order; empty if succeeded
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/batch_cancel_orders'
+query_param = ''
+body='["1","2","3"]'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param, body)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url, headers=headers, data=body)
+print(r.json())
+
+Body parameter
+
+[
+  "1",
+  "2",
+  "3"
+]
+Example responses
+
+200 Response
+
+[
+  {
+    "user_id": 111,
+    "id": "123456",
+    "succeeded": true,
+    "message": ""
+  }
+]
+#Batch modify orders with specified IDs
+
+POST /futures/{settle}/batch_amend_orders
+
+Batch modify orders with specified IDs
+
+You can specify multiple different order IDs. You can only modify up to 10 orders in one request.
+
+Parameters
+Name	In	Type	Required	Description
+x-gate-exptime	header	string	false	Specify the expiration time (milliseconds); if the GATE receives the request time greater than the expiration time, the request will be rejected
+body	body	array[BatchAmendOrderReq]	true	none
+settle	path	string	true	Settle currency
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Request is completed	[Inline]
+Response Schema
+Status Code 200
+
+Name	Type	Description
+None	array	[Futures order details]
+» None	object	Futures order details
+»» succeeded	boolean	Whether the batch of orders succeeded
+»» label	string	Error label, only exists if execution fails
+»» detail	string	Error detail, only present if execution failed and details need to be given
+»» id	integer(int64)	Futures order ID
+»» user	integer	User ID
+»» create_time	number(double)	Creation time of order
+»» finish_time	number(double)	Order finished time. Not returned if order is open
+»» finish_as	string	How the order was finished.
+
+- filled: all filled
+- cancelled: manually cancelled
+- liquidated: cancelled because of liquidation
+- ioc: time in force is IOC, finish immediately
+- auto_deleveraged: finished by ADL
+- reduce_only: cancelled because of increasing position while reduce-only set- position_closed: cancelled because of position close
+- position_closed: canceled because the position was closed
+- reduce_out: only reduce positions by excluding hard-to-fill orders
+- stp: cancelled because self trade prevention
+»» status	string	Order status
+
+- open: waiting to be traded
+- finished: finished
+»» contract	string	Futures contract
+»» size	integer(int64)	Order size. Specify positive number to make a bid, and negative number to ask
+»» iceberg	integer(int64)	Display size for iceberg order. 0 for non-iceberg. Note that you will have to pay the taker fee for the hidden size
+»» price	string	Order price. 0 for market order with tif set as ioc
+»» is_close	boolean	Is the order to close position
+»» is_reduce_only	boolean	Is the order reduce-only
+»» is_liq	boolean	Is the order for liquidation
+»» tif	string	Time in force
+
+- gtc: GoodTillCancelled
+- ioc: ImmediateOrCancelled, taker only
+- poc: PendingOrCancelled, makes a post-only order that always enjoys a maker fee
+- fok: FillOrKill, fill either completely or none
+»» left	integer(int64)	Size left to be traded
+»» fill_price	string	Fill price of the order
+»» text	string	User defined information. If not empty, must follow the rules below:
+
+1. prefixed with t-
+2. no longer than 28 bytes without t- prefix
+3. can only include 0-9, A-Z, a-z, underscore(_), hyphen(-) or dot(.)
+Besides user defined information, reserved contents are listed below, denoting how the order is created:
+
+- web: from web
+- api: from API
+- app: from mobile phones
+- auto_deleveraging: from ADL
+- liquidation: from liquidation
+- insurance: from insurance
+»» tkfr	string	Taker fee
+»» mkfr	string	Maker fee
+»» refu	integer	Reference user ID
+»» stp_act	string	Self-Trading Prevention Action. Users can use this field to set self-trade prevetion strategies
+
+1. After users join the STP Group, he can pass stp_act to limit the user's self-trade prevetion strategy. If stp_act is not passed, the default is cn strategy。
+2. When the user does not join the STP group, an error will be returned when passing the stp_act parameter。
+3. If the user did not use 'stp_act' when placing the order, 'stp_act' will return '-'
+
+- cn: Cancel newest, Cancel new orders and keep old ones
+- co: Cancel oldest, Cancel old orders and keep new ones
+- cb: Cancel both, Both old and new orders will be cancelled
+»» stp_id	integer	Orders between users in the same stp_id group are not allowed to be self-traded
+
+1. If the stp_id of two orders being matched is non-zero and equal, they will not be executed. Instead, the corresponding strategy will be executed based on the stp_act of the taker.
+2. stp_id returns 0 by default for orders that have not been set for STP group
+#Enumerated Values
+Property	Value
+finish_as	filled
+finish_as	cancelled
+finish_as	liquidated
+finish_as	ioc
+finish_as	auto_deleveraged
+finish_as	reduce_only
+finish_as	position_closed
+finish_as	reduce_out
+finish_as	stp
+status	open
+status	finished
+tif	gtc
+tif	ioc
+tif	poc
+tif	fok
+stp_act	co
+stp_act	cn
+stp_act	cb
+stp_act	-
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/batch_amend_orders'
+query_param = ''
+body='[{"order_id":121212,"amend_text":"batch amend text","size":100,"price":"54321"}]'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param, body)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url, headers=headers, data=body)
+print(r.json())
+
+Body parameter
+
+[
+  {
+    "order_id": 121212,
+    "amend_text": "batch amend text",
+    "size": 100,
+    "price": "54321"
+  }
+]
+Example responses
+
+200 Response
+
+[
+  {
+    "succeeded": true,
+    "id": 15675394,
+    "user": 100000,
+    "contract": "BTC_USDT",
+    "create_time": 1546569968,
+    "size": 6024,
+    "iceberg": 0,
+    "left": 6024,
+    "price": "3765",
+    "fill_price": "0",
+    "mkfr": "-0.00025",
+    "tkfr": "0.00075",
+    "tif": "gtc",
+    "refu": 0,
+    "is_reduce_only": false,
+    "is_close": false,
+    "is_liq": false,
+    "text": "t-my-custom-id",
+    "status": "finished",
+    "finish_time": 1514764900,
+    "finish_as": "cancelled",
+    "stp_id": 0,
+    "stp_act": "-",
+    "amend_text": "-"
+  }
+]
+#Create a price-triggered order
+
+POST /futures/{settle}/price_orders
+
+Create a price-triggered order
+
+Parameters
+Name	In	Type	Required	Description
+body	body	FuturesPriceTriggeredOrder	true	none
+» initial	body	object	true	none
+»» contract	body	string	true	Futures contract
+»» size	body	integer(int64)	false	Represents the number of contracts that need to be closed, full closing: size=0
+»» price	body	string	true	Order price. Set to 0 to use market price
+»» close	body	boolean	false	When all positions are closed in a single position mode, it must be set to true to perform the closing operation
+»» tif	body	string	false	Time in force strategy, default is gtc, market order currently only supports ioc mode Market order currently only supports ioc mode
+»» text	body	string	false	The source of the order, including:
+»» reduce_only	body	boolean	false	When set to true, perform automatic position reduction operation. Set to true to ensure that the order will not open a new position, and is only used to close or reduce positions
+»» auto_size	body	string	false	Do not set auto_size
+» trigger	body	object	true	none
+»» strategy_type	body	integer(int32)	false	Trigger Policy
+»» price_type	body	integer(int32)	false	Price type. 0 - latest deal price, 1 - mark price, 2 - index price
+»» price	body	string	false	Value of price on price triggered, or price gap on price gap triggered
+»» rule	body	integer(int32)	false	Price Condition Type
+»» expiration	body	integer	false	How long (in seconds) to wait for the condition to be triggered before cancelling the order.
+» order_type	body	string	false	Types of stop-profit and stop-loss, including:
+settle	path	string	true	Settle currency
+#Detailed descriptions
+»» size: Represents the number of contracts that need to be closed, full closing: size=0 Partial closing: plan-close-short-position size>0 Partial closing: plan-close-long-position size<0
+
+»» close: When all positions are closed in a single position mode, it must be set to true to perform the closing operation When partially closed positions in single-store mode/double-store mode, you can not set close, or close=false
+
+»» tif: Time in force strategy, default is gtc, market order currently only supports ioc mode Market order currently only supports ioc mode
+
+gtc: GoodTillCancelled
+ioc: ImmediateOrCancelled
+»» text: The source of the order, including:
+
+web: web
+api: api
+app: app
+»» auto_size: Do not set auto_size When the dual-position mode is closed all positions (size=0), auto_size, close_long, close_short, short When the double-storey mode partially closes the position (size ≠ 0), there is no need to set auto_size
+
+»» strategy_type: Trigger Policy
+
+0: Price trigger, that is, when the price meets the conditions
+1: Price spread trigger, i.e. the last price specified in price_type minus the second-last price difference At present, only 0 is the latest transaction price
+»» rule: Price Condition Type
+
+1: Indicates that the price calculated based on strategy_type and price_type is greater than or equal to Trigger.Price Trigger, while Trigger.Price must > last_price
+2: Indicates that the price calculated based on strategy_type and price_type is less than or equal to Trigger.Price Trigger, and Trigger.Price must < last_price
+» order_type: Types of stop-profit and stop-loss, including:
+
+close-long-order: Entrusting order stop profit and stop loss, flat long position
+close-short-order: Entrusted order stop profit and stop loss, short position
+close-long-position: Position stop-profit stop loss, used to close long positions
+close-short-position: Position stop-profit stop loss, used to close all short positions
+plan-close-long-position: Position plan take profit and stop loss, used to close long positions in all or part of long positions
+plan-close-short-position: Position plan stop-profit and stop loss, used to close all short positions or partially close short positions
+The two types of entrusted order stop-profit and stop-loss are read-only and cannot be passed in through requests
+
+#Enumerated Values
+Parameter	Value
+»» tif	gtc
+»» tif	ioc
+»» strategy_type	0
+»» strategy_type	1
+»» price_type	0
+»» price_type	1
+»» price_type	2
+»» rule	1
+»» rule	2
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+201	Created(opens new window)	Order created	Inline
+Response Schema
+Status Code 201
+
+TriggerOrderResponse
+
+Name	Type	Description
+» id	integer(int64)	Auto order ID
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/price_orders'
+query_param = ''
+body='{"initial":{"contract":"BTC_USDT","size":100,"price":"5.03"},"trigger":{"strategy_type":0,"price_type":0,"price":"3000","rule":1,"expiration":86400},"order_type":"close-long-order"}'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('POST', prefix + url, query_param, body)
+headers.update(sign_headers)
+r = requests.request('POST', host + prefix + url, headers=headers, data=body)
+print(r.json())
+
+Body parameter
+
+{
+  "initial": {
+    "contract": "BTC_USDT",
+    "size": 100,
+    "price": "5.03"
+  },
+  "trigger": {
+    "strategy_type": 0,
+    "price_type": 0,
+    "price": "3000",
+    "rule": 1,
+    "expiration": 86400
+  },
+  "order_type": "close-long-order"
+}
+Example responses
+
+201 Response
+
+{
+  "id": 1432329
+}
+#List All Price-triggered Orders
+
+GET /futures/{settle}/price_orders
+
+List All Price-triggered Orders
+
+Parameters
+Name	In	Type	Required	Description
+status	query	string	true	Only list the orders with this status
+contract	query	string	false	Futures contract, return related data only if specified
+limit	query	integer	false	Maximum number of records to be returned in a single list
+offset	query	integer	false	List offset, starting from 0
+settle	path	string	true	Settle currency
+#Enumerated Values
+Parameter	Value
+status	open
+status	finished
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	List retrieved	[FuturesPriceTriggeredOrder]
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/price_orders'
+query_param = 'status=open'
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url + "?" + query_param, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "initial": {
+      "contract": "BTC_USDT",
+      "size": 100,
+      "price": "5.03"
+    },
+    "trigger": {
+      "strategy_type": 0,
+      "price_type": 0,
+      "price": "3000",
+      "rule": 1,
+      "expiration": 86400
+    },
+    "id": 1283293,
+    "user": 1234,
+    "create_time": 1514764800,
+    "finish_time": 1514764900,
+    "trade_id": 13566,
+    "status": "finished",
+    "finish_as": "cancelled",
+    "reason": "",
+    "order_type": "close-long-order"
+  }
+]
+#Cancel All Price-triggered Orders
+
+DELETE /futures/{settle}/price_orders
+
+Cancel All Price-triggered Orders
+
+Parameters
+Name	In	Type	Required	Description
+contract	query	string	false	Futures contract, return related data only if specified
+settle	path	string	true	Settle currency
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Batch cancellation request accepted. Query order status by listing orders	[FuturesPriceTriggeredOrder]
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/price_orders'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('DELETE', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('DELETE', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+[
+  {
+    "initial": {
+      "contract": "BTC_USDT",
+      "size": 100,
+      "price": "5.03"
+    },
+    "trigger": {
+      "strategy_type": 0,
+      "price_type": 0,
+      "price": "3000",
+      "rule": 1,
+      "expiration": 86400
+    },
+    "id": 1283293,
+    "user": 1234,
+    "create_time": 1514764800,
+    "finish_time": 1514764900,
+    "trade_id": 13566,
+    "status": "finished",
+    "finish_as": "cancelled",
+    "reason": "",
+    "order_type": "close-long-order"
+  }
+]
+#Get a price-triggered order
+
+GET /futures/{settle}/price_orders/{order_id}
+
+Get a price-triggered order
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+order_id	path	string	true	Retrieve the data of the order with the specified ID
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Auto order detail	FuturesPriceTriggeredOrder
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/price_orders/string'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('GET', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('GET', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "initial": {
+    "contract": "BTC_USDT",
+    "size": 100,
+    "price": "5.03"
+  },
+  "trigger": {
+    "strategy_type": 0,
+    "price_type": 0,
+    "price": "3000",
+    "rule": 1,
+    "expiration": 86400
+  },
+  "id": 1283293,
+  "user": 1234,
+  "create_time": 1514764800,
+  "finish_time": 1514764900,
+  "trade_id": 13566,
+  "status": "finished",
+  "finish_as": "cancelled",
+  "reason": "",
+  "order_type": "close-long-order"
+}
+#cancel a price-triggered order
+
+DELETE /futures/{settle}/price_orders/{order_id}
+
+cancel a price-triggered order
+
+Parameters
+Name	In	Type	Required	Description
+settle	path	string	true	Settle currency
+order_id	path	string	true	Retrieve the data of the order with the specified ID
+#Enumerated Values
+Parameter	Value
+settle	btc
+settle	usdt
+Responses
+Status	Meaning	Description	Schema
+200	OK(opens new window)	Auto order detail	FuturesPriceTriggeredOrder
+To perform this operation, you must be authenticated by API key and secret
+
+Code samples
+
+# coding: utf-8
+import requests
+import time
+import hashlib
+import hmac
+
+host = "https://api.gateio.ws"
+prefix = "/api/v4"
+headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+url = '/futures/usdt/price_orders/string'
+query_param = ''
+# for `gen_sign` implementation, refer to section `Authentication` above
+sign_headers = gen_sign('DELETE', prefix + url, query_param)
+headers.update(sign_headers)
+r = requests.request('DELETE', host + prefix + url, headers=headers)
+print(r.json())
+
+Example responses
+
+200 Response
+
+{
+  "initial": {
+    "contract": "BTC_USDT",
+    "size": 100,
+    "price": "5.03"
+  },
+  "trigger": {
+    "strategy_type": 0,
+    "price_type": 0,
+    "price": "3000",
+    "rule": 1,
+    "expiration": 86400
+  },
+  "id": 1283293,
+  "user": 1234,
+  "create_time": 1514764800,
+  "finish_time": 1514764900,
+  "trade_id": 13566,
+  "status": "finished",
+  "finish_as": "cancelled",
+  "reason": "",
+  "order_type": "close-long-order"
+}

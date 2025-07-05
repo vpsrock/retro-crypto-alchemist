@@ -3,7 +3,7 @@ import { discoverContracts, type DiscoverContractsInput } from '../ai/flows/disc
 import { analyzeTradeRecommendations, analyzeTradeRecommendationsWithLogger } from '../ai/flows/analyze-trade-recommendations';
 import { cleanupOrphanedOrders, placeTradeStrategy } from '../ai/flows/trade-management';
 import { schedulerLogger } from '../lib/scheduler-logs';
-import { listPositions } from './gateio';
+import { listPositions, getContract } from './gateio';
 
 // Re-export types from database
 export type { ScheduledJob, TradePosition, SchedulerStats } from './database';
@@ -536,7 +536,41 @@ class SchedulerService {
         leverage: context.leverage,
       };
       
-      // Create position entry first
+      // Fetch contract specification to calculate correct position size (same as manual trading)
+      const contractSpec = await getContract(context.profilesConfig[0].settle, contractInfo.contract);
+      if (!contractSpec) {
+        const errorMsg = `Could not fetch contract specifications for ${contractInfo.contract}`;
+        console.error(errorMsg);
+        schedulerLogger.log('ERROR', 'TRADING', errorMsg, { contract: contractInfo.contract });
+        return false;
+      }
+
+      const contractPrice = parseFloat(contractSpec.last_price);
+      const contractMultiplier = parseFloat(contractSpec.quanto_multiplier);
+      
+      if (!contractPrice || !contractMultiplier) {
+        const errorMsg = `Invalid contract specifications for ${contractInfo.contract}: price=${contractPrice}, multiplier=${contractMultiplier}`;
+        console.error(errorMsg);
+        schedulerLogger.log('ERROR', 'TRADING', errorMsg, { 
+          contract: contractInfo.contract,
+          contractSpec: { last_price: contractSpec.last_price, quanto_multiplier: contractSpec.quanto_multiplier }
+        });
+        return false;
+      }
+
+      // Calculate position size using the same logic as manual trading
+      const correctPositionSize = Math.max(1, Math.floor(context.tradeSizeUsd / (contractPrice * contractMultiplier)));
+      
+      schedulerLogger.log('DEBUG', 'TRADING', `Position size calculation for ${contractInfo.contract}`, {
+        contract: contractInfo.contract,
+        tradeSizeUsd: context.tradeSizeUsd,
+        contractPrice,
+        contractMultiplier,
+        calculatedSize: correctPositionSize,
+        formula: `Math.floor(${context.tradeSizeUsd} / (${contractPrice} * ${contractMultiplier}))`
+      });
+      
+      // Create position entry with correct size calculation
       const position: Omit<database.TradePosition, 'id'> = {
         jobId: context.jobId,
         contract: contractInfo.contract,
@@ -544,7 +578,7 @@ class SchedulerService {
         tradeCall: analysisResult.trade_call.toLowerCase(),
         entryPrice: analysisResult.current_price,
         currentPrice: analysisResult.current_price,
-        size: context.tradeSizeUsd / analysisResult.current_price,
+        size: correctPositionSize,
         leverage: context.leverage,
         tradeSizeUsd: context.tradeSizeUsd,
         confidenceScore: Math.round(analysisResult.confidence_score),
